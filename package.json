@@ -1,0 +1,11 @@
+{
+  "name": "unified-checkout",
+  "version": "1.0.0",
+  "description": "Universal payment checkout plugin for Express — Stripe, PayPal, Sellup, Crypto, SEPA with failover and cloaking",
+  "main": "index.js",
+  "private": true,
+  "dependencies": {
+    "express": "^4.18.0",
+    "stripe": "^22.0.0"
+  }
+}

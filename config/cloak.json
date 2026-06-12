@@ -1,0 +1,84 @@
+{
+  "platforms": [
+    {
+      "name": "Google",
+      "ips": ["66.249.64.0/19", "66.249.80.0/20", "66.249.82.0/23", "74.125.0.0/16", "64.233.160.0/19", "72.14.192.0/18", "209.85.128.0/17", "216.239.32.0/19", "35.224.0.0/13"],
+      "uas": ["Googlebot", "AdsBot-Google", "Googlebot-Mobile", "Googlebot-Image", "Googlebot-News", "Googlebot-Video", "Mediapartners-Google", "Feedfetcher-Google", "APIs-Google", "Chrome-Lighthouse", "Google-Adwords", "Google-Site-Verification", "Google-Page-Renderer", "Google-InspectionTool"],
+      "page": "hosting"
+    },
+    {
+      "name": "Stripe",
+      "ips": ["52.15.127.128/28", "35.160.127.128/28", "52.14.127.128/28", "35.167.74.121/32", "35.167.74.122/32", "35.167.74.123/32", "35.167.74.124/32", "35.167.74.125/32", "35.167.74.126/32"],
+      "uas": ["Stripe", "Stripe/1.0", "Stripe-Webhook", "Stripe-Compliance-Crawler", "stripe.com"],
+      "page": "hosting"
+    },
+    {
+      "name": "PayPal",
+      "ips": ["64.4.240.0/20", "66.211.160.0/19", "173.0.80.0/20", "198.52.88.0/24"],
+      "uas": ["PayPal", "PayPal IPN", "PayPal Webhooks", "paypal.com"],
+      "page": "hosting"
+    },
+    {
+      "name": "Facebook",
+      "ips": ["69.171.224.0/19", "69.171.250.0/24", "66.220.144.0/20", "69.63.176.0/20", "74.119.76.0/22", "173.252.64.0/18", "31.13.24.0/21", "31.13.64.0/18", "157.240.0.0/16"],
+      "uas": ["facebookexternalhit", "Facebot", "facebookcatalog", "facebook", "fb*"],
+      "page": "hosting"
+    },
+    {
+      "name": "Apple",
+      "ips": ["17.0.0.0/8"],
+      "uas": ["Applebot", "Apple-PubSub", "AppleStore"],
+      "page": "safe"
+    },
+    {
+      "name": "Microsoft",
+      "ips": ["40.0.0.0/8", "13.64.0.0/11", "20.0.0.0/8"],
+      "uas": ["msnbot", "bingbot", "BingPreview", "Microsoft", "MSCBot"],
+      "page": "safe"
+    },
+    {
+      "name": "Twitter",
+      "ips": ["199.16.156.0/22", "199.59.148.0/22"],
+      "uas": ["Twitterbot", "Twitter"],
+      "page": "safe"
+    },
+    {
+      "name": "LinkedIn",
+      "ips": ["91.225.248.0/22", "108.174.2.0/23"],
+      "uas": ["LinkedInBot", "LinkedIn"],
+      "page": "safe"
+    },
+    {
+      "name": "Pinterest",
+      "ips": ["54.236.1.0/24"],
+      "uas": ["Pinterestbot", "Pinterest"],
+      "page": "safe"
+    }
+  ],
+  "safe_page": {
+    "title": "Dalletek Digital Solutions",
+    "heading": "Digital Solutions & Consulting",
+    "subheading": "Empowering businesses with cutting-edge technology solutions",
+    "description": "Dalletek Digital Solutions is a premier technology consulting firm specializing in digital transformation, cloud infrastructure, and cybersecurity. We help businesses leverage technology to drive growth and innovation.",
+    "email": "info@dalletek.live",
+    "features": [
+      { "title": "Tech Consulting", "description": "Strategic technology consulting to help you navigate the digital landscape." },
+      { "title": "Cybersecurity", "description": "Comprehensive security assessments and protection strategies." },
+      { "title": "Cloud Services", "description": "Scalable cloud infrastructure design and management." },
+      { "title": "Data Analytics", "description": "Transform raw data into actionable business insights." },
+      { "title": "Software Development", "description": "Custom software solutions tailored to your business needs." },
+      { "title": "Digital Transformation", "description": "End-to-end digital transformation consulting and implementation." }
+    ]
+  },
+  "hosting_page": {
+    "title": "NexusHost - Premium Web Hosting",
+    "heading": "High-Performance Web Hosting",
+    "subheading": "Fast, secure, and reliable hosting for your online presence",
+    "plans": [
+      { "name": "Starter", "price": "€14.99/mo", "features": ["1 Website", "50 GB SSD", "Free SSL", "Daily Backups"] },
+      { "name": "Premium", "price": "€24.99/mo", "features": ["10 Websites", "200 GB SSD", "Free SSL", "Daily Backups", "CDN Included"] },
+      { "name": "Ultimate", "price": "€89.99/yr", "features": ["Unlimited Sites", "1 TB SSD", "Free SSL", "Daily Backups", "CDN + DDoS Protection"] }
+    ],
+    "contact": "support@nexushost.com"
+  }
+}
