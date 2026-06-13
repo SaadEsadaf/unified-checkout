@@ -1,0 +1,497 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"><title>Payment Engine Admin</title><style>
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;background:#08080e;color:#e0e0f0;overflow-x:hidden;font-size:14px}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:200px;background:linear-gradient(180deg,#0d0d1a,#12122a);border-right:1px solid #1a1a3a;padding:16px 0;overflow-y:auto;z-index:100}
+.sidebar .logo{padding:8px 16px 20px;font-size:14px;font-weight:800;background:linear-gradient(135deg,#00d4ff,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:-0.3px}
+.sidebar .logo small{display:block;font-weight:400;font-size:10px;color:#444!important;-webkit-text-fill-color:#444;letter-spacing:0}
+.tab{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;color:#666;font-size:13px;font-weight:500;transition:all .15s;border-left:3px solid transparent}
+.tab:hover{color:#aaa;background:#ffffff06}
+.tab.active{color:#fff;background:#ffffff08;border-left-color:#00d4ff;font-weight:600}
+.main{margin-left:200px;min-height:100vh;padding:20px 28px}
+.tab-content{display:none}.tab-content.active{display:block}
+h1{font-size:22px;font-weight:800;margin-bottom:4px}h2{font-size:16px;font-weight:700;margin-bottom:16px;color:#888}
+.card{background:linear-gradient(145deg,#111125,#0d0d1a);border:1px solid #1a1a3a;border-radius:14px;padding:20px;margin-bottom:16px}
+.card-title{font-size:13px;font-weight:600;color:#888;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+.stat{background:#0d0d1f;border:1px solid #1a1a3a;border-radius:10px;padding:14px 16px}
+.stat .val{font-size:22px;font-weight:800;color:#fff}.stat .val.green{color:#00ff88}.stat .val.red{color:#ff4444}.stat .val.blue{color:#00d4ff}.stat .val.gold{color:#ffd700}
+.stat .lbl{font-size:11px;color:#666;margin-top:2px}
+table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;padding:8px 10px;color:#555;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid #1a1a3a}
+td{padding:8px 10px;border-bottom:1px solid #1a1a3a;color:#ccc}tr:hover td{background:#ffffff04}
+input,select,textarea{padding:8px 12px;background:#0a0a14;border:1px solid #2a2a4a;border-radius:8px;color:#fff;font-size:13px;outline:none;font-family:inherit;transition:border .15s}
+input:focus,select:focus,textarea:focus{border-color:#00d4ff}textarea{resize:vertical;min-height:80px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;color:#fff;text-decoration:none}
+.btn-primary{background:linear-gradient(135deg,#00d4ff,#8b5cf6)}.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+.btn-sm{padding:5px 12px;font-size:11px}.btn-red{background:#ff3344}.btn-red:hover{opacity:.9}
+.btn-green{background:#00cc66}.btn-green:hover{opacity:.9}.btn-ghost{background:transparent;border:1px solid #2a2a4a;color:#888}.btn-ghost:hover{border-color:#00d4ff;color:#fff}
+.btn-warn{background:#ff8800}.btn-warn:hover{opacity:.9}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.badge-green{background:#00ff8820;color:#00ff88}.badge-red{background:#ff444420;color:#ff4444}.badge-blue{background:#00d4ff20;color:#00d4ff}.badge-gray{background:#ffffff10;color:#666}
+.badge-gold{background:#ffd70020;color:#ffd700}
+.flex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.flex-between{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.mt-8{margin-top:8px}.mt-16{margin-top:16px}.mb-8{margin-bottom:8px}.mb-16{margin-bottom:16px}.gap-8{gap:8px}.gap-16{gap:16px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.mono{font-family:'SF Mono','Fira Code',monospace;font-size:12px;color:#888}.text-center{text-align:center}
+.pulse{animation:pulse 2s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.copy-btn{background:none;border:none;color:#00d4ff;cursor:pointer;font-size:11px;padding:2px 6px;border-radius:4px}.copy-btn:hover{background:#00d4ff20}
+.chart-bar{display:flex;align-items:end;gap:2px;height:60px}.chart-bar div{background:linear-gradient(180deg,#00d4ff,#8b5cf6);border-radius:3px 3px 0 0;transition:height .3s;min-width:12px;flex:1}
+.toast{position:fixed;bottom:24px;right:24px;background:#0d0d1a;border:1px solid #2a2a4a;border-radius:10px;padding:12px 20px;color:#fff;font-size:13px;z-index:9999;opacity:0;transform:translateY(20px);transition:all .3s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+@media(max-width:768px){.sidebar{width:50px}.sidebar .logo span{display:none}.sidebar .tab span{display:none}.main{margin-left:50px;padding:12px}.grid-2{grid-template-columns:1fr}.stat-row{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.stat-row{grid-template-columns:1fr}.main{padding:8px}.card{padding:12px}}
+</style></head><body><div id="app"></div>
+<script>
+const API = '/admin/api';
+let state = { tab: 'dashboard', orders: [], stats: null, methods: {}, cloak: null, crypto: null, credits: null, landingPages: [], failover: [], logs: [] };
+
+function $(s, p) { return (p||document).querySelector(s) }
+function $$(s, p) { return [...(p||document).querySelectorAll(s)] }
+
+function qs(params) { return '?' + Object.entries(params).filter(([_,v])=>v).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&') }
+
+function show(id) { state.tab = id; $$('.tab-content').forEach(e => e.classList.remove('active')); $$('.tab').forEach(e => e.classList.remove('active')); $(`#tab-${id}`)?.classList.add('active'); $(`#content-${id}`)?.classList.add('active'); history.replaceState(null,'',`/admin#${id}`) }
+
+function toast(msg) { const t = document.createElement('div'); t.className='toast show'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300)},2200) }
+
+async function api(method, path, body) {
+  const token = localStorage.getItem('admin_token');
+  const opts = { method, headers: {} };
+  if (token) opts.headers['x-admin-token'] = token;
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body) }
+  const res = await fetch(path.includes('?') ? path + '&token=' + encodeURIComponent(token||'') : path + '?token=' + encodeURIComponent(token||''), opts);
+  if (res.status === 401) { localStorage.removeItem('admin_token'); renderLogin(); return null }
+  return res.json();
+}
+
+// ==================== LOGIN ====================
+function renderLogin() {
+  document.getElementById('app').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#08080e">
+    <div style="background:linear-gradient(145deg,#111,#1a1a2e);border:1px solid #2a2a4a;border-radius:20px;padding:40px;width:100%;max-width:400px;text-align:center">
+      <div style="font-size:36px;margin-bottom:12px">💳</div>
+      <h1 style="font-size:22px;font-weight:800;margin-bottom:4px;background:linear-gradient(135deg,#00d4ff,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Payment Engine</h1>
+      <p style="color:#666;font-size:13px;margin-bottom:24px">Admin access — enter the admin token from app_settings.internal_api_secret</p>
+      <input id="login-pwd" type="password" placeholder="Admin token" style="width:100%;padding:12px 16px;background:#0f0f1a;border:1px solid #2a2a4a;border-radius:10px;color:#fff;font-size:14px;outline:none;margin-bottom:16px" onkeydown="if(event.key==='Enter')login()">
+      <button class="btn btn-primary" style="width:100%;padding:12px;font-size:15px;justify-content:center" onclick="login()">🔓 Unlock</button>
+      <p id="login-err" style="color:#ff4444;font-size:13px;margin-top:12px;display:none"></p>
+    </div></div>`;
+}
+
+async function login() {
+  const pwd = document.getElementById('login-pwd').value;
+  const d = await api('GET', `/admin/api/auth?token=${encodeURIComponent(pwd)}`);
+  if (d?.success) { localStorage.setItem('admin_token', pwd); renderApp(); }
+  else { const e = document.getElementById('login-err'); e.textContent = 'Invalid token'; e.style.display = 'block' }
+}
+
+// ==================== MAIN APP ====================
+function renderApp() {
+  const tabs = [
+    {id:'dashboard', icon:'📊', label:'Dashboard'},
+    {id:'orders', icon:'📦', label:'Orders'},
+    {id:'methods', icon:'💳', label:'Payment Methods'},
+    {id:'failover', icon:'🔄', label:'Failover Chain'},
+    {id:'crypto', icon:'₿', label:'Crypto'},
+    {id:'credits', icon:'💰', label:'Credits'},
+    {id:'cloak', icon:'🕵️', label:'Cloaking'},
+    {id:'landing', icon:'🎨', label:'Landing Pages'},
+    {id:'plugins', icon:'🧪', label:'Plugin Lab'},
+  ];
+  document.getElementById('app').innerHTML = `
+    <div class="sidebar">
+      <div class="logo">💳 <span>Pay Engine</span><small>admin</small></div>
+      ${tabs.map(t => `<div class="tab${t.id===state.tab?' active':''}" id="tab-${t.id}" onclick="show('${t.id}')"><span>${t.icon}</span><span>${t.label}</span></div>`).join('')}
+      <div style="margin-top:auto;padding:16px;font-size:10px;color:#333;text-align:center">v2.0</div>
+    </div>
+    <div class="main">
+      ${tabs.map(t => `<div class="tab-content${t.id===state.tab?' active':''}" id="content-${t.id}"></div>`).join('')}
+    </div>
+    <div class="toast" id="toast"></div>`;
+  loadAll();
+}
+
+async function loadAll() {
+  loadDashboard(); loadOrders(); loadMethods(); loadFailover(); loadCrypto(); loadCredits(); loadCloak(); loadLanding(); loadPluginLab();
+}
+
+// ==================== DASHBOARD ====================
+async function loadDashboard() {
+  const el = document.getElementById('content-dashboard');
+  el.innerHTML = '<p style="color:#666">Loading...</p>';
+  state.stats = await api('GET', '/admin/api/stats');
+  if (!state.stats) return;
+  const s = state.stats;
+  el.innerHTML = `
+    <div class="flex-between mb-16"><div><h1>📊 Dashboard</h1><p style="color:#666;font-size:13px">Payment Engine overview</p></div>
+      <button class="btn btn-ghost btn-sm" onclick="loadDashboard()">🔄 Refresh</button></div>
+    <div class="stat-row">
+      <div class="stat"><div class="val blue">${s.overview.total_orders}</div><div class="lbl">Total Orders</div></div>
+      <div class="stat"><div class="val gold">€${parseFloat(s.overview.total_revenue).toFixed(2)}</div><div class="lbl">Total Revenue</div></div>
+      <div class="stat"><div class="val green">${s.overview.fulfilled}</div><div class="lbl">Fulfilled</div></div>
+      <div class="stat"><div class="val">${s.overview.completed}</div><div class="lbl">Completed</div></div>
+      <div class="stat"><div class="val" style="color:#ff8800">${s.overview.pending}</div><div class="lbl">Pending</div></div>
+      <div class="stat"><div class="val red">${s.overview.cancelled||0}</div><div class="lbl">Cancelled</div></div>
+    </div>
+    <div class="grid-3">
+      <div class="card"><div class="card-title">Revenue by Method</div>${s.byMethod.map(m => `<div class="flex-between" style="padding:6px 0;border-bottom:1px solid #1a1a3a"><span>${badgeMethod(m.method)}</span><span style="font-weight:600">€${parseFloat(m.revenue).toFixed(2)}</span></div>`).join('')}</div>
+      <div class="card"><div class="card-title">Daily Orders (30d)</div><div class="chart-bar">${s.daily.map(d => `<div title="${d.day}: ${d.count} orders / €${parseFloat(d.revenue).toFixed(2)}" style="height:${Math.max(3, (d.count/Math.max(...s.daily.map(x=>x.count),1))*55)}px"></div>`).join('')}</div><div class="mono text-center mt-8">${s.daily.length} days</div></div>
+      <div class="card"><div class="card-title">24h Hourly Distribution</div><div class="chart-bar">${s.hourly.map(h => `<div title="Hour ${h.hour}: ${h.count}" style="height:${Math.max(3, (h.count/Math.max(...s.hourly.map(x=>x.count),1))*55)}px"></div>`).join('')}</div><div class="mono text-center mt-8">${s.hourly.reduce((a,b)=>a+b.count,0)} orders last 24h</div></div>
+    </div>
+    <div class="grid-2 mt-8">
+      <div class="card"><div class="card-title">Credits</div><div class="flex-between"><span style="color:#888">Users</span><span style="font-weight:700">${s.credits.c}</span></div><div class="flex-between"><span style="color:#888">Total Balance</span><span style="font-weight:700">€${(s.credits.total_balance/100).toFixed(2)}</span></div></div>
+      <div class="card"><div class="card-title">Credit Transactions</div>${s.creditTxs.map(t => `<div class="flex-between" style="padding:4px 0"><span>${t.type}</span><span>${t.count} txs (${Math.abs(t.total/100).toFixed(2)})</span></div>`).join('')}</div>
+    </div>`;
+}
+
+function badgeMethod(m) {
+  const map = {stripe:'Stripe',paypal:'PayPal',sellup:'Sellup',crypto:'Crypto',sepa:'SEPA','email-link':'Email',credits:'Credits',manual:'Manual'};
+  return `<span class="badge ${m==='stripe'?'badge-blue':m==='paypal'?'badge-blue':m==='crypto'?'badge-gold':m==='credits'?'badge-green':'badge-gray'}">${map[m]||m}</span>`;
+}
+function badgeStatus(s) {
+  return `<span class="badge ${s==='completed'?'badge-green':s==='fulfilled'?'badge-blue':s==='pending'?'badge-red':s==='cancelled'?'badge-gray':'badge-gray'}">${s}</span>`;
+}
+function badgeBool(v) { return v ? '<span class="badge badge-green">ON</span>' : '<span class="badge badge-red">OFF</span>' }
+
+// ==================== ORDERS ====================
+async function loadOrders(page) {
+  page = page || 1;
+  const el = document.getElementById('content-orders');
+  el.innerHTML = '<p style="color:#666">Loading...</p>';
+  const d = await api('GET', `/admin/api/orders?page=${page}&limit=20`);
+  if (!d) return;
+  state.orders = d.orders;
+  el.innerHTML = `
+    <div class="flex-between mb-16"><div><h1>📦 Orders</h1><p style="color:#666;font-size:13px">${d.total} total orders</p></div>
+      <div class="flex">
+        <button class="btn btn-primary btn-sm" onclick="showCreateOrder()">+ New Order</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadOrders()">🔄</button>
+      </div></div>
+    <div class="card" style="padding:0;overflow-x:auto">
+    <table><thead><tr><th>ID</th><th>Email</th><th>Plan</th><th>Amount</th><th>Method</th><th>Status</th><th>Date</th><th></th></tr></thead>
+    <tbody>${d.orders.map(o => `<tr>
+      <td style="font-family:monospace;font-size:11px;color:#555">#${o.id}</td>
+      <td>${esc(o.customer_email)}</td>
+      <td style="font-size:12px">${esc(o.plan_name||'-')}</td>
+      <td style="font-weight:600">€${parseFloat(o.plan_price).toFixed(2)}</td>
+      <td>${badgeMethod(o.method)}</td>
+      <td>${badgeStatus(o.status)}</td>
+      <td style="font-size:11px;color:#666">${o.created_at}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="viewOrder(${o.id})">View</button></td>
+    </tr>`).join('')}</tbody></table></div>
+    <div class="flex mt-8" style="justify-content:center">
+      ${Array.from({length:d.pages}, (_,i) => `<button class="btn btn-ghost btn-sm" style="${i+1===page?'border-color:#00d4ff;color:#fff':''}" onclick="loadOrders(${i+1})">${i+1}</button>`).join('')}
+    </div>`;
+}
+
+function viewOrder(id) {
+  const o = state.orders.find(x => x.id === id);
+  if (!o) return;
+  alert(`Order #${o.id}\nEmail: ${o.customer_email}\nName: ${o.customer_name||'-'}\nPhone: ${o.customer_phone||'-'}\nPlan: ${o.plan_name||'-'}\nPrice: €${parseFloat(o.plan_price).toFixed(2)}\nMethod: ${o.method}\nStatus: ${o.status}\nPayment ID: ${o.payment_id||'-'}\nBusiness Order: ${o.business_order_id||'-'}\nCreated: ${o.created_at}\nUpdated: ${o.updated_at||'-'}`);
+}
+
+function showCreateOrder() {
+  const email = prompt('Customer email:');
+  if (!email) return;
+  const price = prompt('Price (EUR):');
+  if (!price) return;
+  const method = prompt('Method (stripe/paypal/sellup/crypto/sepa/email-link/manual):') || 'manual';
+  const name = prompt('Customer name (optional):') || '';
+  api('POST', '/admin/api/orders', { customer_email: email, customer_name: name, plan_price: parseFloat(price), method }).then(d => {
+    if (d?.success) { toast('Order #' + d.id + ' created'); loadOrders(); }
+  });
+}
+
+// ==================== PAYMENT METHODS ====================
+async function loadMethods() {
+  const el = document.getElementById('content-methods');
+  el.innerHTML = '<p style="color:#666">Loading...</p>';
+  state.methods = await api('GET', '/admin/api/methods');
+  if (!state.methods) return;
+  const m = state.methods;
+  el.innerHTML = `
+    <div class="flex-between mb-16"><div><h1>💳 Payment Methods</h1><p style="color:#666;font-size:13px">Configure each payment gateway</p></div></div>
+    <div class="grid-2">${Object.entries(m).map(([name, cfg]) => `
+      <div class="card"><div class="flex-between mb-8"><span class="card-title" style="margin:0">${nameIcon(name)} ${name.toUpperCase()}</span>${cfg._configured ? '<span class="badge badge-green">Configured</span>' : '<span class="badge badge-red">Not configured</span>'}</div>
+      ${Object.entries(cfg).filter(([k])=>!k.startsWith('_')).map(([key, val]) => `
+        <div style="margin-bottom:8px"><label style="display:block;font-size:11px;color:#555;margin-bottom:3px;font-family:monospace">${key}</label>
+        <div class="flex" style="gap:4px"><input type="${key.includes('secret')||key.includes('password')||key.includes('pin')?'password':'text'}" value="${esc(val)}" style="flex:1;font-family:monospace;font-size:12px;padding:6px 10px" id="m-${name}-${key}" onchange="updateMethodKey('${name}','${key}',this.value)">
+        <button class="copy-btn" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('input').value);toast('Copied')">📋</button></div></div>
+      `).join('')}
+      <div class="flex mt-8"><button class="btn btn-ghost btn-sm" onclick="testPlugin('${name}')">🧪 Test ${name}</button></div></div>
+    `).join('')}</div>`;
+}
+
+function nameIcon(n) { return {stripe:'⚡',paypal:'🅿️',sellup:'🛒',crypto:'₿',sepa:'🏦','email-link':'📧'}[n]||'💳' }
+
+async function updateMethodKey(plugin, key, value) {
+  await api('POST', '/admin/api/methods', { key, value });
+  toast('Saved ' + key);
+}
+
+async function testPlugin(method) {
+  const amount = prompt(`Test ${method} with amount (EUR):`, '1');
+  if (!amount) return;
+  const email = prompt('Test email:', 'test@example.com');
+  if (!email) return;
+  const d = await api('POST', '/admin/api/test-plugin', { method, email, amount: parseFloat(amount) });
+  alert(d.success ? '✅ OK\n' + JSON.stringify(d.result,null,2).substring(0,500) : '❌ Failed: ' + (d.error||'unknown'));
+}
+
+// ==================== FAILOVER ====================
+async function loadFailover() {
+  const el = document.getElementById('content-failover');
+  el.innerHTML = '<p style="color:#666">Loading...</p>';
+  const d = await api('GET', '/admin/api/failover');
+  if (!d) return;
+  state.failover = d.chain;
+  el.innerHTML = `
+    <div class="flex-between mb-16"><div><h1>🔄 Failover Chain</h1><p style="color:#666;font-size:13px">Drag to reorder. When one method fails, the next is tried automatically.</p></div></div>
+    <div class="card"><div class="card-title">Chain order</div>
+      <div id="failover-list">${d.chain.map((m,i) => `
+        <div draggable="true" ondragstart="dragFailover(event,${i})" ondragover="event.preventDefault()" ondrop="dropFailover(event,${i})" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#0a0a14;border:1px solid #1a1a3a;border-radius:8px;margin-bottom:6px;cursor:grab">
+          <div class="flex" style="gap:10px"><span style="color:#555;font-family:monospace">${i+1}.</span><span>${nameIcon(m)} ${m}</span></div>
+          <button class="btn btn-ghost btn-sm" onclick="removeFailover(${i})">✕</button>
+        </div>`).join('')}</div>
+      <div class="flex mt-8">
+        <select id="failover-add-select" style="flex:1"><option value="">Select method...</option>${['stripe','paypal','sellup','crypto','sepa','email-link'].filter(m => !d.chain.includes(m)).map(m => `<option value="${m}">${m}</option>`).join('')}</select>
+        <button class="btn btn-primary btn-sm" onclick="addFailover()">+ Add</button>
+        <button class="btn btn-ghost btn-sm" onclick="saveFailover()">💾 Save</button>
+      </div></div>
+    <div class="card"><div class="card-title">Flow diagram</div>
+      <div class="flex" style="justify-content:center;gap:4px;flex-wrap:wrap;padding:16px">
+      ${d.chain.map((m,i) => `<span class="badge badge-blue" style="padding:6px 14px;font-size:12px">${nameIcon(m)} ${m}</span>${i<d.chain.length-1?'<span style="color:#333">→</span>':''}`).join('')}
+      </div></div>`;
+}
+let dragFailoverIdx;
+function dragFailover(e, i) { dragFailoverIdx = i }
+function dropFailover(e, i) {
+  const chain = state.failover;
+  const [removed] = chain.splice(dragFailoverIdx, 1);
+  chain.splice(i, 0, removed);
+  state.failover = chain;
+  loadFailover();
+}
+function addFailover() {
+  const sel = document.getElementById('failover-add-select');
+  if (!sel.value) return;
+  state.failover.push(sel.value);
+  loadFailover();
+}
+function removeFailover(i) { state.failover.splice(i,1); loadFailover() }
+async function saveFailover() {
+  await api('POST', '/admin/api/failover', { chain: state.failover });
+  toast('Failover chain saved');
+}
+
+// ==================== CRYPTO ====================
+async function loadCrypto() {
+  const el = document.getElementById('content-crypto');
+  el.innerHTML = '<p style="color:#666">Loading...</p>';
+  const d = await api('GET', '/admin/api/crypto');
+  if (!d) return;
+  state.crypto = d;
+  el.innerHTML = `
+    <div class="flex-between mb-16"><div><h1>₿ Crypto Payments</h1><p style="color:#666;font-size:13px">On-chain crypto monitoring & addresses</p></div>
+      <button class="btn btn-ghost btn-sm" onclick="loadCrypto()">🔄</button></div>
+    <div class="stat-row">
+      <div class="stat"><div class="val gold">${d.stats.pending.c}</div><div class="lbl">Pending Payments</div></div>
+      <div class="stat"><div class="val green">${d.stats.confirmed.c}</div><div class="lbl">Confirmed</div></div>
+      <div class="stat"><div class="val gold">~€${parseFloat(d.stats.pending.total).toFixed(2)}</div><div class="lbl">Pending Value</div></div>
+      <div class="stat"><div class="val">Min ${d.minConfirmations}</div><div class="lbl">Required Confirmations</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="card-title">USDT Address</div>
+        <div class="flex"><input value="${esc(d.addresses.usdt)}" style="flex:1;font-family:monospace;font-size:12px" id="crypto-usdt-addr" placeholder="Enter USDT address..."><button class="btn btn-primary btn-sm" onclick="saveCryptoAddr('usdt')">Save</button></div></div>
+      <div class="card"><div class="card-title">BTC Address</div>
+        <div class="flex"><input value="${esc(d.addresses.btc)}" style="flex:1;font-family:monospace;font-size:12px" id="crypto-btc-addr" placeholder="Enter BTC address..."><button class="btn btn-primary btn-sm" onclick="saveCryptoAddr('btc')">Save</button></div></div>
+    </div>
+    <div class="card"><div class="flex-between"><span class="card-title">Monitor Service</span>${badgeBool(d.enabled)}</div>
+      <p style="color:#888;font-size:12px;margin-bottom:12px">Polls Block.io every 60 seconds for incoming payments. ${d.enabled ? 'Currently active.' : 'Disabled.'}</p>
+      <button class="btn ${d.enabled?'btn-red':'btn-green'} btn-sm" onclick="toggleCryptoMonitor()">${d.enabled ? '⏹ Stop Monitor' : '▶️ Start Monitor'}</button></div>
+    <div class="card" style="padding:0;overflow-x:auto;margin-top:16px"><div class="card-title" style="padding:12px 16px;margin:0;border-bottom:1px solid #1a1a3a">Recent Payments</div>
+    <table><thead><tr><th>ID</th><th>Coin</th><th>Email</th><th>Expected</th><th>Received</th><th>Status</th><th>Address</th><th>Confirmations</th><th>Date</th></tr></thead>
+    <tbody>${d.payments.map(p => `<tr>
+      <td>#${p.id}</td><td>${p.coin?.toUpperCase()||'-'}</td><td style="font-size:12px">${esc(p.customer_email||'-')}</td>
+      <td>${p.expected_amount}</td><td>${p.received_amount||0}</td>
+      <td>${badgeStatus(p.status)}</td>
+      <td style="font-family:monospace;font-size:10px;max-width:150px;overflow:hidden;text-overflow:ellipsis">${p.address||'-'}</td>
+      <td>${p.confirmations||0}</td>
+      <td style="font-size:11px;color:#666">${p.created_at}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+async function saveCryptoAddr(coin) {
+  const addr = document.getElementById(`crypto-${coin}-addr`).value;
+  await api('POST', '/admin/api/crypto/address', { coin, address: addr });
+  toast(`${coin.toUpperCase()} address saved`);
+}
+async function toggleCryptoMonitor() {
+  const d = await api('POST', '/admin/api/crypto/toggle-monitor');
+  if (d) loadCrypto();
+}
+
+// ==================== CREDITS ====================
+async function loadCredits() {
+  const el = document.getElementById('content-credits');
+  el.innerHTML = '<p style="color:#666">Loading...</p>';
+  const d = await api('GET', '/admin/api/credits');
+  if (!d) return;
+  state.credits = d;
+  el.innerHTML = `
+    <div class="flex-between mb-16"><div><h1>💰 Credits System</h1><p style="color:#666;font-size:13px">Prepaid credits balance for ${d.stats.total_users} users</p></div></div>
+    <div class="stat-row">
+      <div class="stat"><div class="val">${d.stats.total_users}</div><div class="lbl">Users with credits</div></div>
+      <div class="stat"><div class="val gold">€${(d.stats.total_balance/100).toFixed(2)}</div><div class="lbl">Total Balance</div></div>
+      <div class="stat"><div class="val blue">€${(d.stats.avg_balance/100).toFixed(2)}</div><div class="lbl">Avg Balance</div></div>
+    </div>
+    <div class="card"><div class="card-title">Grant Credits</div>
+      <div class="flex"><input id="credits-email" placeholder="Customer email" style="flex:2"><input id="credits-amount" type="number" placeholder="Amount (cents)" style="flex:1"><button class="btn btn-primary btn-sm" onclick="grantCredits()">Grant</button></div></div>
+    <div class="card" style="padding:0;overflow-x:auto;margin-top:16px">
+    <table><thead><tr><th>Email</th><th>Balance (cents)</th><th>Transactions</th><th>Updated</th></tr></thead>
+    <tbody>${d.users.map(u => `<tr>
+      <td>${esc(u.customer_email)}</td><td style="font-weight:600;font-family:monospace">${u.balance}</td><td>${u.tx_count||0}</td><td style="font-size:11px;color:#666">${u.updated_at||'-'}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+async function grantCredits() {
+  const email = document.getElementById('credits-email').value;
+  const amount = parseInt(document.getElementById('credits-amount').value);
+  if (!email || !amount) return toast('Email and amount required');
+  const d = await api('POST', '/admin/api/credits/grant', { email, amount });
+  if (d?.success) { toast(`Granted ${amount} credits to ${email}`); loadCredits(); }
+}
+
+// ==================== CLOAK ====================
+async function loadCloak() {
+  const el = document.getElementById('content-cloak');
+  el.innerHTML = '<p style="color:#666">Loading...</p>';
+  const d = await api('GET', '/admin/api/cloak');
+  if (!d) return;
+  state.cloak = d;
+  el.innerHTML = `
+    <div class="flex-between mb-16"><div><h1>🕵️ Cloaking</h1><p style="color:#666;font-size:13px">Anti-bot cloaking — serve fake pages to crawlers, checkout to real users</p></div></div>
+    <div class="stat-row">
+      <div class="stat"><div class="val">${d.platforms.length}</div><div class="lbl">Platforms</div></div>
+      <div class="stat"><div class="val">${d.totalLPs}</div><div class="lbl">Landing Pages</div></div>
+      <div class="stat"><div class="val green">${d.activeLPs}</div><div class="lbl">Active Pages</div></div>
+    </div>
+    <div class="card"><div class="flex-between"><span class="card-title">Cloak Status</span>${badgeBool(d.enabled)}</div>
+      <button class="btn ${d.enabled?'btn-red':'btn-green'} btn-sm mt-8" onclick="toggleCloak()">${d.enabled ? '⏹ Disable Cloak' : '▶️ Enable Cloak'}</button></div>
+    <div class="card"><div class="card-title">Protected Platforms</div>
+      <div class="flex" style="gap:4px;flex-wrap:wrap">${d.platforms.map(p => `<span class="badge badge-blue" style="padding:4px 10px">${p}</span>`).join('')}</div>
+      <p style="color:#555;font-size:11px;margin-top:8px">IP ranges + UA patterns configured in config/cloak.json. ${d.enabled ? 'Active on all /lp/ routes.' : 'Disabled.'}</p></div>
+    <div class="card"><div class="card-title">Landing Pages (${d.totalLPs})</div>
+      ${d.landingPages.map(p => `<div class="flex-between" style="padding:8px 0;border-bottom:1px solid #1a1a3a">
+        <div><span style="color:#fff">${esc(p.title||p.slug)}</span><span style="color:#555;font-size:11px;margin-left:8px">/${p.slug}</span></div>
+        <div class="flex">${badgeStatus(p.active?'active':'inactive')}<span style="color:#555;font-size:11px;margin-left:8px">${p.language||'-'}</span></div>
+      </div>`).join('')}
+      <button class="btn btn-ghost btn-sm mt-8" onclick="show('landing')">Manage Landing Pages →</button></div>`;
+}
+
+async function toggleCloak() {
+  const d = await api('POST', '/admin/api/cloak/toggle');
+  if (d) { toast('Cloak ' + (d.enabled ? 'enabled' : 'disabled')); loadCloak(); }
+}
+
+// ==================== LANDING PAGES ====================
+async function loadLanding() {
+  const el = document.getElementById('content-landing');
+  el.innerHTML = '<p style="color:#666">Loading...</p>';
+  const d = await api('GET', '/admin/api/landing-pages');
+  if (!d) return;
+  state.landingPages = d;
+  el.innerHTML = `
+    <div class="flex-between mb-16"><div><h1>🎨 Landing Pages</h1><p style="color:#666;font-size:13px">Cloaked landing pages — ${d.length} total</p></div>
+      <div class="flex">
+        <button class="btn btn-primary btn-sm" onclick="showCreateLP()">+ New Page</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadLanding()">🔄</button>
+      </div></div>
+    <div class="card" style="padding:0;overflow-x:auto">
+    <table><thead><tr><th>Slug</th><th>Title</th><th>Keyword</th><th>Language</th><th>Type</th><th>Active</th><th>Created</th><th></th></tr></thead>
+    <tbody>${d.map(p => `<tr>
+      <td style="font-family:monospace;font-size:11px">/${p.slug}</td>
+      <td>${esc(p.title||'-')}</td>
+      <td style="font-size:11px;color:#888">${esc(p.keyword||'-')}</td>
+      <td>${p.language||'fr'}</td>
+      <td><span class="badge badge-gray">${p.page_type||'iptv'}</span></td>
+      <td>${badgeStatus(p.active?'active':'inactive')}</td>
+      <td style="font-size:11px;color:#666">${p.created_at}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="toggleLP(${p.id})">Toggle</button></td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+function showCreateLP() {
+  const slug = prompt('Slug (e.g. best-iptv):');
+  if (!slug) return;
+  const title = prompt('Title:') || slug;
+  const html = '<!DOCTYPE html><html><head><title>' + title + '</title><style>body{font-family:sans-serif;background:#fff;color:#333;max-width:800px;margin:40px auto;padding:20px}</style></head><body><h1>' + title + '</h1><p>Landing page content here.</p></body></html>';
+  api('POST', '/admin/api/landing-pages', { slug, title, html_content: html }).then(d => {
+    if (d?.success) { toast('Page created: /' + slug); loadLanding(); }
+  });
+}
+
+async function toggleLP(id) {
+  await api('POST', `/admin/api/landing-pages/${id}/toggle`);
+  loadLanding();
+}
+
+// ==================== PLUGIN LAB ====================
+async function loadPluginLab() {
+  const el = document.getElementById('content-plugins');
+  el.innerHTML = '<p style="color:#666">Loading...</p>';
+  const methods = await api('GET', '/admin/api/methods');
+  if (!methods) return;
+  el.innerHTML = `
+    <div class="flex-between mb-16"><div><h1>🧪 Plugin Lab</h1><p style="color:#666;font-size:13px">Test payment plugins, inspect webhooks, dry-run orders</p></div></div>
+    <div class="grid-2">
+      ${['stripe','paypal','sellup','crypto','sepa','email-link'].map(m => `
+        <div class="card">
+          <div class="card-title">${nameIcon(m)} ${m.toUpperCase()}</div>
+          <div class="flex-between mb-8"><span style="color:#888;font-size:12px">Status</span>${methods[m]?._configured ? badgeBool(true) : '<span class="badge badge-red">Not configured</span>'}</div>
+          <div class="flex" style="flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="testPlugin('${m}')">🧪 Test Payment</button>
+            <button class="btn btn-ghost btn-sm" onclick="showWebhookUrl('${m}')">🔗 Webhook URL</button>
+            <button class="btn btn-ghost btn-sm" onclick="show('methods')">⚙️ Configure</button>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="card"><div class="card-title">Mock Webhook Simulator</div>
+      <p style="color:#888;font-size:12px;margin-bottom:12px">Simulate a webhook callback from any provider to test the fulfillment pipeline</p>
+      <div class="flex">
+        <select id="mock-webhook-method" style="flex:1"><option value="stripe">Stripe</option><option value="paypal">PayPal</option><option value="sellup">Sellup</option></select>
+        <input id="mock-webhook-email" placeholder="Customer email" style="flex:1">
+        <button class="btn btn-warn btn-sm" onclick="mockWebhook()">🔥 Fire Mock</button>
+      </div></div>
+    <div class="card"><div class="card-title">System Info</div>
+      <div class="flex-between"><span style="color:#888">Site URL</span><span class="mono">${window.location.origin}</span></div>
+      <div class="flex-between"><span style="color:#888">Engine Port</span><span class="mono">${window.location.port||'3003'}</span></div>
+      <div class="flex-between"><span style="color:#888">API Base</span><span class="mono">/admin/api</span></div>
+    </div>`;
+}
+
+async function showWebhookUrl(method) {
+  const d = await api('POST', '/admin/api/test-webhook', { method });
+  if (d?.success) alert('Webhook URL for ' + method + ':\n' + d.webhookUrl + '\n\nConfigure this in your ' + method.toUpperCase() + ' dashboard.');
+}
+
+async function mockWebhook() {
+  const method = document.getElementById('mock-webhook-method').value;
+  const email = document.getElementById('mock-webhook-email').value;
+  if (!email) return toast('Enter a customer email');
+  const d = await api('POST', '/admin/api/test-plugin', { method, email, amount: 1 });
+  toast(d?.success ? 'Mock webhook sent (check logs)' : 'Mock failed');
+}
+
+// ==================== UTILITIES ====================
+function esc(s) { if (!s) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) }
+
+// ==================== INIT ====================
+const token = localStorage.getItem('admin_token');
+if (token) { (async () => { const d = await api('GET', `/admin/api/auth?token=${encodeURIComponent(token)}`); d?.success ? renderApp() : renderLogin(); })() } else renderLogin();
+
+// Hash routing
+window.addEventListener('hashchange', () => {
+  const tab = location.hash.slice(1) || 'dashboard';
+  if (['dashboard','orders','methods','failover','crypto','credits','cloak','landing','plugins'].includes(tab)) show(tab);
+});
+const initTab = location.hash.slice(1) || 'dashboard';
+if (['dashboard','orders','methods','failover','crypto','credits','cloak','landing','plugins'].includes(initTab)) setTimeout(() => show(initTab), 100);
+</script></body></html>

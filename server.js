@@ -13,6 +13,7 @@ const db = getDb()
 
 app.use(cors({ origin: '*', credentials: true }))
 app.use(express.json({ limit: '10mb' }))
+app.use('/admin', require('./routes/admin'))
 app.use(express.static(path.join(__dirname, 'client')))
 
 // ==================== Load Payment Configs from DB ====================
