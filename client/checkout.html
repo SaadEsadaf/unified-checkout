@@ -75,24 +75,27 @@ body { font-family:system-ui,-apple-system,sans-serif; background:#0a0a0f; color
     </div>
 
     <div id="pointsBadge" class="points-badge"></div>
+    <div id="pointsTopup" style="display:none;margin-bottom:12px">
+      <button onclick="topupPoints()" style="width:100%;padding:10px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⚡ Top up points</button>
+    </div>
 
     <div class="form-group">
       <label>Payment method</label>
       <div class="options">
+        <button class="option-btn" data-method="points" onclick="selectMethod('points')" id="pointsBtn">
+          <span class="option-icon">⭐</span>
+          <span class="option-info"><div class="option-label">Points <span id="pointsRecBadge" style="display:none;background:#00cc66;color:#fff;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:middle">Recommended</span></div><div class="option-desc">No chargeback risk — use your prepaid balance</div></span>
+          <span class="option-tag" id="pointsTag">0 pts</span>
+        </button>
         <button class="option-btn" data-method="paypal" onclick="selectMethod('paypal')">
           <span class="option-icon">🅿️</span>
           <span class="option-info"><div class="option-label">PayPal</div><div class="option-desc">Pay with your PayPal account</div></span>
-          <span class="option-tag">Fast</span>
+          <span class="option-tag">Chargeback risk</span>
         </button>
         <button class="option-btn" data-method="stripe" onclick="selectMethod('stripe')">
           <span class="option-icon">💳</span>
           <span class="option-info"><div class="option-label">Credit Card</div><div class="option-desc">Visa, Mastercard, Maestro</div></span>
-          <span class="option-tag">Secure</span>
-        </button>
-        <button class="option-btn" data-method="points" onclick="selectMethod('points')">
-          <span class="option-icon">⭐</span>
-          <span class="option-info"><div class="option-label">Points</div><div class="option-desc">Use your account balance</div></span>
-          <span class="option-tag" id="pointsTag">0 pts</span>
+          <span class="option-tag">Chargeback risk</span>
         </button>
       </div>
     </div>
@@ -126,6 +129,7 @@ function updatePoints() {
   if (!email || !email.includes('@')) {
     document.getElementById('pointsBadge').style.display = 'none'
     document.getElementById('pointsTag').textContent = '0 pts'
+    document.getElementById('pointsRecBadge').style.display = 'none'
     return
   }
   fetch('/api/credits/' + encodeURIComponent(email))
@@ -134,16 +138,36 @@ function updatePoints() {
       state.points = (d.balance || 0) / 100
       const badge = document.getElementById('pointsBadge')
       const tag = document.getElementById('pointsTag')
+      const recBadge = document.getElementById('pointsRecBadge')
+      const price = parseFloat(state.plan?.price_sell || 0)
+      const enoughForPlan = state.points >= price
       if (state.points > 0) {
-        badge.innerHTML = '⭐ You have <span>' + state.points.toFixed(0) + ' points</span> (€' + state.points.toFixed(2) + ')'
+        const pointsNeeded = Math.max(0, price - state.points)
+        badge.innerHTML = enoughForPlan
+          ? '⭐ You have <span>' + state.points.toFixed(0) + ' points</span> (€' + state.points.toFixed(2) + ')  ✅ Enough to pay in full'
+          : '⭐ You have <span>' + state.points.toFixed(0) + ' points</span> (€' + state.points.toFixed(2) + ')  ⚠️ Need €' + pointsNeeded.toFixed(2) + ' more'
         badge.style.display = 'block'
+        badge.style.background = enoughForPlan
+          ? 'linear-gradient(135deg,#00cc66,#059669)'
+          : 'linear-gradient(135deg,#f59e0b,#ef4444)'
         tag.textContent = state.points.toFixed(0) + ' pts'
+        recBadge.style.display = enoughForPlan ? 'inline' : 'none'
+        if (enoughForPlan && !state.selectedMethod) {
+          selectMethod('points')
+        }
       } else {
         badge.style.display = 'none'
         tag.textContent = '0 pts'
+        recBadge.style.display = 'none'
       }
     })
     .catch(() => {})
+}
+
+function topupPoints() {
+  const btn = document.getElementById('payBtn')
+  btn.textContent = 'Redirecting to top-up...'; btn.disabled = true
+  window.location.href = '/checkout?topup=' + encodeURIComponent(state.email) + '&return=' + encodeURIComponent(window.location.href)
 }
 
 function selectMethod(method) {

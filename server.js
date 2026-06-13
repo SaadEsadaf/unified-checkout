@@ -252,9 +252,13 @@ app.post('/api/credits/spend', express.json(), async (req, res) => {
   }
 })
 
-// ==================== Hosted Checkout Page ====================
+// ==================== Hosted Checkout & Credits Pages ====================
 app.get('/checkout', (req, res) => {
+  if (req.query.topup) return res.redirect('/credits?email=' + encodeURIComponent(req.query.topup) + '&return=' + encodeURIComponent(req.originalUrl))
   res.sendFile(path.join(__dirname, 'client', 'checkout.html'))
+})
+app.get('/credits', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client', 'credits.html'))
 })
 
 // ==================== Payment Routes (Warmup-Aware) ====================
