@@ -352,4 +352,20 @@ router.post('/api/test-webhook', (req, res) => {
   }
 });
 
+// Warmup account management
+router.get('/api/warmup', (req, res) => {
+  const db = getDb();
+  const accounts = db.prepare('SELECT * FROM account_providers ORDER BY provider, created_at DESC').all();
+  const warmupEngine = require('../services/warmupEngine');
+  res.json({ accounts, rules: warmupEngine.DEFAULT_RULES });
+});
+
+router.post('/api/warmup/log', (req, res) => {
+  const db = getDb();
+  const { provider, account_id, amount, success, dispute } = req.body;
+  const warmupEngine = require('../services/warmupEngine');
+  warmupEngine.logTxn(provider, account_id, parseFloat(amount || 0), success !== false, !!dispute);
+  res.json({ success: true });
+});
+
 module.exports = router;

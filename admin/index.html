@@ -94,6 +94,7 @@ function renderApp() {
     {id:'cloak', icon:'🕵️', label:'Cloaking'},
     {id:'landing', icon:'🎨', label:'Landing Pages'},
     {id:'plugins', icon:'🧪', label:'Plugin Lab'},
+    {id:'warmup', icon:'🌡️', label:'Warmup'},
   ];
   document.getElementById('app').innerHTML = `
     <div class="sidebar">
@@ -109,7 +110,7 @@ function renderApp() {
 }
 
 async function loadAll() {
-  loadDashboard(); loadOrders(); loadMethods(); loadFailover(); loadCrypto(); loadCredits(); loadCloak(); loadLanding(); loadPluginLab();
+  loadDashboard(); loadOrders(); loadMethods(); loadFailover(); loadCrypto(); loadCredits(); loadCloak(); loadLanding(); loadPluginLab(); loadWarmup();
 }
 
 // ==================== DASHBOARD ====================
@@ -480,6 +481,65 @@ async function mockWebhook() {
   toast(d?.success ? 'Mock webhook sent (check logs)' : 'Mock failed');
 }
 
+// ==================== WARMUP ====================
+async function loadWarmup() {
+  const el = document.getElementById('content-warmup');
+  el.innerHTML = '<p style="color:#666">Loading...</p>';
+  const d = await api('GET', '/admin/api/warmup');
+  if (!d) return;
+  el.innerHTML = `
+    <div class="flex-between mb-16"><div><h1>🌡️ Account Warmup</h1><p style="color:#666;font-size:13px">Payment provider warming status — prevents bans by gradually scaling volume</p></div></div>
+    <div class="grid-3 mb-16">
+      <div class="card"><div class="card-title">🔥 Stripe Rules</div>
+        <div style="font-size:12px;color:#888">Ramp: ${JSON.stringify(d.rules.stripe.ramp.week1)} → wk4</div>
+        <div style="font-size:12px;color:#888">Dispute threshold: ${(d.rules.stripe.disputeThreshold*100)+'%'}</div>
+        <div style="font-size:12px;color:#888">Min age: ${d.rules.stripe.minAgeDays}d</div>
+        <div style="font-size:12px;color:#888">KYC required before: €${d.rules.stripe.requireKycBefore}</div>
+      </div>
+      <div class="card"><div class="card-title">🅿️ PayPal Rules</div>
+        <div style="font-size:12px;color:#888">Ramp: ${JSON.stringify(d.rules.paypal.ramp.week1)} → wk4</div>
+        <div style="font-size:12px;color:#888">Dispute threshold: ${(d.rules.paypal.disputeThreshold*100)+'%'}</div>
+        <div style="font-size:12px;color:#888">Cookie warmup: ${d.rules.paypal.cookieWarmupDays}d</div>
+        <div style="font-size:12px;color:#888">Min age: ${d.rules.paypal.minAgeDays}d</div>
+      </div>
+      <div class="card"><div class="card-title">📊 Current Status</div>
+        <div style="font-size:12px;color:#888">Tracked accounts: ${d.accounts.length}</div>
+        <div style="font-size:12px;color:#888">Warming: ${d.accounts.filter(a=>a.status==='warming').length}</div>
+        <div style="font-size:12px;color:#888">Active: ${d.accounts.filter(a=>a.status==='active').length}</div>
+        <div style="font-size:12px;color:#888">Trusted: ${d.accounts.filter(a=>a.status==='trusted').length}</div>
+        <div style="font-size:12px;color:#ff4444">Restricted: ${d.accounts.filter(a=>a.status==='restricted').length}</div>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow-x:auto">
+    <table><thead><tr><th>Provider</th><th>Account</th><th>Status</th><th>Age</th><th>Volume</th><th>Daily</th><th>Weekly</th><th>Txns</th><th>Disputes</th><th>KYC</th></tr></thead>
+    <tbody>${d.accounts.map(a => `
+      <tr>
+        <td><span class="badge ${a.provider==='stripe'?'badge-blue':'badge-blue'}">${a.provider}</span></td>
+        <td style="font-family:monospace;font-size:11px;color:#888">${esc(a.account_id)}</td>
+        <td>${badgeStatus(a.status)}</td>
+        <td>${a.age_days||Math.ceil((Date.now()-new Date(a.created_at).getTime())/86400000)}d</td>
+        <td>€${a.total_volume.toFixed(2)}</td>
+        <td>€${a.daily_volume.toFixed(2)}</td>
+        <td>€${a.weekly_volume.toFixed(2)}</td>
+        <td>${a.txn_count}</td>
+        <td>${a.dispute_count}</td>
+        <td>${badgeBool(a.kyc_completed)}</td>
+      </tr>`).join('')}
+    ${d.accounts.length === 0 ? '<tr><td colspan="10" style="text-align:center;color:#555;padding:24px">No accounts tracked yet. Accounts are auto-registered on first transaction.</td></tr>' : ''}
+    </tbody></table></div>
+    <div class="card mt-8"><div class="card-title">Warmup Strategy Notes</div>
+      <ul style="color:#888;font-size:12px;line-height:1.8;padding-left:16px">
+        <li><b>Week 1:</b> Small transactions only (€30-50 max per txn, €100-200 daily max). Build baseline.</li>
+        <li><b>Week 2:</b> Gradually increase — €50-100 per txn, €300-500 daily max.</li>
+        <li><b>Week 3-4:</b> Continue scaling — €100-200 per txn, €500-1000 daily max.</li>
+        <li><b>Month 2+:</b> Active status. Can process full volume but keep disputes &lt;0.5%.</li>
+        <li><b>Stripe:</b> Enable Radar from day 1. Maintain clear billing descriptors.</li>
+        <li><b>PayPal:</b> Cookie-warm browser profiles 3d before creating accounts. Never use VPN.</li>
+        <li><b>Both:</b> Contact support before any volume spike. Refunds > chargebacks.</li>
+      </ul>
+    </div>`;
+}
+
 // ==================== UTILITIES ====================
 function esc(s) { if (!s) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) }
 
@@ -490,8 +550,8 @@ if (token) { (async () => { const d = await api('GET', `/admin/api/auth?token=${
 // Hash routing
 window.addEventListener('hashchange', () => {
   const tab = location.hash.slice(1) || 'dashboard';
-  if (['dashboard','orders','methods','failover','crypto','credits','cloak','landing','plugins'].includes(tab)) show(tab);
+  if (['dashboard','orders','methods','failover','crypto','credits','cloak','landing','plugins','warmup'].includes(tab)) show(tab);
 });
 const initTab = location.hash.slice(1) || 'dashboard';
-if (['dashboard','orders','methods','failover','crypto','credits','cloak','landing','plugins'].includes(initTab)) setTimeout(() => show(initTab), 100);
+if (['dashboard','orders','methods','failover','crypto','credits','cloak','landing','plugins','warmup'].includes(initTab)) setTimeout(() => show(initTab), 100);
 </script></body></html>

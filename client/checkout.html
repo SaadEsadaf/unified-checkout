@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Checkout</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box }
+body { font-family:system-ui,-apple-system,sans-serif; background:#0a0a0f; color:#fff; min-height:100vh; display:flex; align-items:center; justify-content:center }
+.panel { background:linear-gradient(145deg,#111,#1a1a2e); border:1px solid #2a2a4a; border-radius:20px; padding:32px; width:100%; max-width:480px; margin:20px }
+.header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px }
+.header h1 { font-size:22px; background:linear-gradient(135deg,#00d4ff,#8b5cf6); -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text }
+.badge { background:#2a2a4a; color:#888; padding:4px 10px; border-radius:20px; font-size:12px }
+.summary { background:#0d0d1e; border-radius:12px; padding:16px; margin-bottom:24px }
+.summary-row { display:flex; justify-content:space-between; padding:8px 0 }
+.summary-row:not(:last-child) { border-bottom:1px solid #1a1a2e }
+.summary-label { color:#888; font-size:13px }
+.summary-value { color:#fff; font-size:14px; font-weight:600 }
+.price { color:#e94560; font-size:24px; font-weight:700 }
+.form-group { margin-bottom:16px }
+.form-group label { display:block; color:#888; font-size:13px; margin-bottom:6px }
+.form-group input { width:100%; padding:12px 16px; background:#0d0d1e; border:1px solid #2a2a4a; border-radius:10px; color:#fff; font-size:14px; outline:none }
+.form-group input:focus { border-color:#00d4ff }
+.points-badge { display:none; background:linear-gradient(135deg,#f59e0b,#ef4444); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; margin-bottom:16px; text-align:center }
+.points-badge span { font-weight:700 }
+.options { display:flex; flex-direction:column; gap:10px; margin-top:8px }
+.option-btn { display:flex; align-items:center; gap:14px; padding:16px; border:2px solid #2a2a4a; border-radius:12px; cursor:pointer; background:#0d0d1e; color:#fff; font-size:15px; transition:all 0.2s; width:100%; text-align:left }
+.option-btn:hover { border-color:#00d4ff; background:#111128 }
+.option-btn.selected { border-color:#00d4ff; background:#111128 }
+.option-btn:disabled { opacity:0.4; cursor:not-allowed }
+.option-icon { font-size:28px; width:40px; text-align:center }
+.option-info { flex:1 }
+.option-label { font-weight:600; font-size:14px }
+.option-desc { color:#666; font-size:12px; margin-top:2px }
+.option-tag { font-size:11px; padding:2px 8px; border-radius:4px; background:#2a2a4a; color:#888 }
+.btn-primary { width:100%; padding:14px; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; transition:opacity 0.2s; margin-top:16px }
+.btn-primary:hover { opacity:0.9 }
+.btn-paypal { background:#0070ba; color:#fff }
+.btn-stripe { background:#635bff; color:#fff }
+.btn-points { background:linear-gradient(135deg,#f59e0b,#ef4444); color:#fff }
+.btn-secondary { width:100%; padding:12px; background:none; border:1px solid #2a2a4a; border-radius:10px; color:#666; font-size:13px; cursor:pointer; margin-top:8px; transition:color 0.2s }
+.btn-secondary:hover { color:#fff; border-color:#444 }
+.error { color:#e94560; font-size:13px; padding:8px 12px; background:#2a1520; border-radius:6px; margin-bottom:12px; display:none }
+.loading { text-align:center; padding:40px; color:#666 }
+.spinner { width:32px; height:32px; border:3px solid #2a2a4a; border-top-color:#00d4ff; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 12px }
+@keyframes spin { to { transform:rotate(360deg) } }
+.success-icon { font-size:48px; margin-bottom:12px }
+.manual-details { background:#0d0d1e; border-radius:8px; padding:12px; font-size:13px; margin-bottom:12px; word-break:break-all }
+.manual-details div { padding:6px 0; border-bottom:1px solid #1a1a2e; color:#ccc }
+.manual-details div:last-child { border:none }
+.manual-details strong { color:#888 }
+.warmup-notice { background:#1a2a1a; border:1px solid #2a4a2a; border-radius:8px; padding:8px 12px; font-size:11px; color:#81c784; margin-bottom:12px; display:none }
+</style>
+</head>
+<body>
+<div class="panel" id="app">
+  <div class="header">
+    <h1>Checkout</h1>
+    <span class="badge">Secure</span>
+  </div>
+
+  <div id="loading-view" class="loading">
+    <div class="spinner"></div>
+    <div>Loading...</div>
+  </div>
+
+  <div id="checkout-view" style="display:none">
+    <div class="summary" id="planSummary"></div>
+
+    <div id="warmupNotice" class="warmup-notice"></div>
+
+    <div class="form-group">
+      <label>Email address</label>
+      <input type="email" id="emailInput" placeholder="your@email.com" autocomplete="email">
+    </div>
+
+    <div id="pointsBadge" class="points-badge"></div>
+
+    <div class="form-group">
+      <label>Payment method</label>
+      <div class="options">
+        <button class="option-btn" data-method="paypal" onclick="selectMethod('paypal')">
+          <span class="option-icon">🅿️</span>
+          <span class="option-info"><div class="option-label">PayPal</div><div class="option-desc">Pay with your PayPal account</div></span>
+          <span class="option-tag">Fast</span>
+        </button>
+        <button class="option-btn" data-method="stripe" onclick="selectMethod('stripe')">
+          <span class="option-icon">💳</span>
+          <span class="option-info"><div class="option-label">Credit Card</div><div class="option-desc">Visa, Mastercard, Maestro</div></span>
+          <span class="option-tag">Secure</span>
+        </button>
+        <button class="option-btn" data-method="points" onclick="selectMethod('points')">
+          <span class="option-icon">⭐</span>
+          <span class="option-info"><div class="option-label">Points</div><div class="option-desc">Use your account balance</div></span>
+          <span class="option-tag" id="pointsTag">0 pts</span>
+        </button>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="payBtn" onclick="pay()" disabled>Continue</button>
+    <button class="btn-secondary" onclick="goBack()">Cancel</button>
+  </div>
+
+  <div id="success-view" style="display:none;text-align:center;padding:20px">
+    <div class="success-icon">✅</div>
+    <h2 style="margin-bottom:8px;font-size:20px">Payment Successful!</h2>
+    <p style="color:#81c784;font-size:14px;margin-bottom:20px" id="successMsg">Your order has been processed.</p>
+    <button class="btn-primary btn-stripe" onclick="done()">Done</button>
+  </div>
+
+  <div id="manual-view" style="display:none;text-align:center;padding:10px">
+    <div style="font-size:36px;margin-bottom:12px">📋</div>
+    <h2 style="margin-bottom:8px;font-size:18px">Complete Your Payment</h2>
+    <p style="color:#888;font-size:13px;margin-bottom:16px" id="manualDesc">Send the exact amount using the details below</p>
+    <div class="manual-details" id="manualDetails"></div>
+    <button class="btn-secondary" onclick="showCheckout()">Back</button>
+  </div>
+</div>
+
+<script>
+let state = { plan: null, email: '', points: 0, selectedMethod: '', loading: false, error: '', orderResult: null }
+
+function updatePoints() {
+  const email = document.getElementById('emailInput').value.trim()
+  state.email = email
+  if (!email || !email.includes('@')) {
+    document.getElementById('pointsBadge').style.display = 'none'
+    document.getElementById('pointsTag').textContent = '0 pts'
+    return
+  }
+  fetch('/api/credits/' + encodeURIComponent(email))
+    .then(r => r.json())
+    .then(d => {
+      state.points = (d.balance || 0) / 100
+      const badge = document.getElementById('pointsBadge')
+      const tag = document.getElementById('pointsTag')
+      if (state.points > 0) {
+        badge.innerHTML = '⭐ You have <span>' + state.points.toFixed(0) + ' points</span> (€' + state.points.toFixed(2) + ')'
+        badge.style.display = 'block'
+        tag.textContent = state.points.toFixed(0) + ' pts'
+      } else {
+        badge.style.display = 'none'
+        tag.textContent = '0 pts'
+      }
+    })
+    .catch(() => {})
+}
+
+function selectMethod(method) {
+  document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'))
+  document.querySelector('.option-btn[data-method="' + method + '"]').classList.add('selected')
+  state.selectedMethod = method
+
+  const btn = document.getElementById('payBtn')
+  btn.disabled = false
+  if (method === 'paypal') { btn.className = 'btn-primary btn-paypal'; btn.textContent = 'Pay with PayPal' }
+  else if (method === 'stripe') { btn.className = 'btn-primary btn-stripe'; btn.textContent = 'Pay with Credit Card' }
+  else if (method === 'points') { btn.className = 'btn-primary btn-points'; btn.textContent = 'Pay with Points' }
+}
+
+async function pay() {
+  if (!state.email) { showError('Enter your email'); return }
+  if (!state.selectedMethod) { showError('Select a payment method'); return }
+
+  state.loading = true; document.getElementById('payBtn').disabled = true; document.getElementById('payBtn').textContent = 'Processing...'; hideError()
+
+  try {
+    if (state.selectedMethod === 'points') {
+      if (state.points < (state.plan.price_sell * 100)) {
+        showError('Insufficient points. Need €' + state.plan.price_sell + ' but you have €' + state.points.toFixed(2))
+        state.loading = false; document.getElementById('payBtn').disabled = false; document.getElementById('payBtn').textContent = 'Pay with Points'
+        return
+      }
+      const res = await fetch('/api/pay/points', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: state.email, plan: state.plan })
+      })
+      const data = await res.json()
+      if (data.success) { showSuccess('Paid with points!') }
+      else { showError(data.error || 'Points payment failed') }
+      state.loading = false; document.getElementById('payBtn').disabled = false
+      return
+    }
+
+    const res = await fetch('/api/pay/' + state.selectedMethod, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: state.email, plan: state.plan })
+    })
+    const data = await res.json()
+    if (data.success && data.url) { window.location.href = data.url; return }
+    if (data.success && data.manual) { showManual(data.details); return }
+    if (data.success) { showSuccess('Payment initiated'); return }
+
+    showError(data.error || 'Payment failed')
+  } catch (err) { showError(err.message) }
+
+  state.loading = false; document.getElementById('payBtn').disabled = false
+  if (state.selectedMethod === 'paypal') document.getElementById('payBtn').textContent = 'Pay with PayPal'
+  else if (state.selectedMethod === 'stripe') document.getElementById('payBtn').textContent = 'Pay with Credit Card'
+  else document.getElementById('payBtn').textContent = 'Pay with Points'
+}
+
+function showError(msg) {
+  const el = document.getElementById('checkout-view').querySelector('.error')
+  if (!el) return
+  el.textContent = msg; el.style.display = 'block'
+}
+
+function hideError() {
+  const el = document.getElementById('checkout-view').querySelector('.error')
+  if (el) el.style.display = 'none'
+}
+
+function showSuccess(msg) {
+  document.getElementById('checkout-view').style.display = 'none'
+  document.getElementById('manual-view').style.display = 'none'
+  document.getElementById('successMsg').textContent = msg
+  document.getElementById('success-view').style.display = 'block'
+}
+
+function showManual(details) {
+  document.getElementById('checkout-view').style.display = 'none'
+  document.getElementById('success-view').style.display = 'none'
+  const html = []
+  if (details.addresses?.usdt) html.push('<div><strong>USDT (TRC20):</strong><br><code>' + details.addresses.usdt + '</code></div>')
+  if (details.addresses?.btc) html.push('<div><strong>Bitcoin:</strong><br><code>' + details.addresses.btc + '</code></div>')
+  if (details.bankDetails) {
+    if (details.bankDetails.iban) html.push('<div><strong>IBAN:</strong> ' + details.bankDetails.iban + '</div>')
+    if (details.bankDetails.bic) html.push('<div><strong>BIC:</strong> ' + details.bankDetails.bic + '</div>')
+    if (details.bankDetails.bankName) html.push('<div><strong>Bank:</strong> ' + details.bankDetails.bankName + '</div>')
+    if (details.reference) html.push('<div><strong>Reference:</strong> <code>' + details.reference + '</code></div>')
+  }
+  if (details.paypalEmail) html.push('<div><strong>Send to:</strong> ' + details.paypalEmail + '</div>')
+  html.push('<div><strong>Amount:</strong> €' + (details.amount || state.plan.price_sell) + '</div>')
+  document.getElementById('manualDetails').innerHTML = html.join('')
+  document.getElementById('manual-view').style.display = 'block'
+}
+
+function showCheckout() {
+  document.getElementById('success-view').style.display = 'none'
+  document.getElementById('manual-view').style.display = 'none'
+  document.getElementById('checkout-view').style.display = 'block'
+}
+
+function goBack() { window.location.href = '/' }
+function done() { window.location.href = '/payment/success' }
+
+function init(plan) {
+  state.plan = plan
+  document.getElementById('loading-view').style.display = 'none'
+  document.getElementById('checkout-view').style.display = 'block'
+
+  const summary = document.getElementById('planSummary')
+  summary.innerHTML = '<div class="summary-row"><span class="summary-label">Plan</span><span class="summary-value">' + (plan.name || 'Plan') + '</span></div>' +
+    '<div class="summary-row"><span class="summary-label">Duration</span><span class="summary-value">' + (plan.duration || '') + '</span></div>' +
+    '<div class="summary-row"><span class="summary-label">Total</span><span class="price">€' + (plan.price_sell || '0') + '</span></div>'
+
+  document.getElementById('emailInput').addEventListener('input', updatePoints)
+}
+
+const params = new URLSearchParams(window.location.search)
+const planParam = params.get('plan')
+if (planParam) {
+  try { init(JSON.parse(decodeURIComponent(planParam))) }
+  catch { document.getElementById('loading-view').innerHTML = '<div style="color:#e94560">Invalid plan data</div>' }
+} else {
+  document.getElementById('loading-view').innerHTML = '<div style="color:#888">No plan specified</div>'
+}
+</script>
+</body>
+</html>

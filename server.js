@@ -6,6 +6,7 @@ const crypto = require('crypto')
 const { getDb } = require('./db')
 const unifiedCheckout = require('./index')
 const { createCloakMiddleware } = require('./middleware/cloak')
+const warmupEngine = require('./services/warmupEngine')
 
 const app = express()
 const PORT = process.env.PORT || 3003
@@ -249,6 +250,122 @@ app.post('/api/credits/spend', express.json(), async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
+})
+
+// ==================== Hosted Checkout Page ====================
+app.get('/checkout', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client', 'checkout.html'))
+})
+
+// ==================== Payment Routes (Warmup-Aware) ====================
+function loadPluginConfigs() {
+  const configs = {}
+  const keys = {
+    stripe: ['stripe_secret_key', 'stripe_publishable_key', 'stripe_webhook_secret'],
+    paypal: ['paypal_client_id', 'paypal_client_secret', 'paypal_mode', 'paypal_email'],
+    sellup: ['sellup_api_key', 'sellup_store_id', 'sellup_webhook_secret'],
+    crypto: ['crypto_address_usdt', 'crypto_address_btc'],
+    sepa: ['sepa_iban', 'sepa_bic', 'sepa_bank_name', 'sepa_holder_name'],
+  }
+  for (const [plugin, pluginKeys] of Object.entries(keys)) {
+    configs[plugin] = {}
+    for (const key of pluginKeys) {
+      const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(key)
+      configs[plugin][key] = row?.value || process.env[key.toUpperCase()] || ''
+    }
+  }
+  return configs
+}
+
+function createOrder(email, plan, method) {
+  const result = db.prepare(`
+    INSERT INTO orders (customer_email, provider_id, plan_id, plan_name, plan_price, method, status, website_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, datetime('now'))
+  `).run(email || null, plan.provider_id || null, plan.id, plan.name || plan.id, plan.price_sell, method, plan.website_id || 1)
+  return result.lastInsertRowid
+}
+
+async function tryWarmupPayment(email, name, plan, method) {
+  const routing = warmupEngine.shouldUseAlternative(method, parseFloat(plan.price_sell))
+  if (routing.usePrimary === false && plan.warmupBypass !== true) {
+    return { success: false, error: routing.routing.reason, warmupBlocked: true }
+  }
+
+  const orderId = createOrder(email, plan, method)
+  const accountId = loadPluginConfigs()[method]?.[`${method}_email`] || method
+  try {
+    const PluginClass = require(`./plugins/${method}`)
+    const configs = loadPluginConfigs()
+    const plugin = new PluginClass(configs[method] || {})
+    if (!plugin.isConfigured || !plugin.isConfigured()) {
+      throw new Error(`${method} is not configured`)
+    }
+    const order = {
+      id: orderId, plan, email, name: name || '',
+      website_id: plan.website_id || '1',
+      siteUrl: process.env.SITE_URL || 'http://localhost:3003',
+      returnUrl: `${process.env.SITE_URL || 'http://localhost:3003'}/payment/success`,
+      cancelUrl: '/payment/cancel',
+    }
+    const result = await plugin.createPayment(order)
+    warmupEngine.logTxn(method, accountId, parseFloat(plan.price_sell), true, false)
+    return { success: true, method, result, orderId }
+  } catch (err) {
+    warmupEngine.logTxn(method, accountId, parseFloat(plan.price_sell), false, true)
+    return { success: false, error: err.message, orderId }
+  }
+}
+
+app.post('/api/pay/paypal', express.json(), async (req, res) => {
+  try {
+    const { email, plan } = req.body
+    if (!plan?.price_sell) return res.status(400).json({ error: 'Plan with price_sell required' })
+    const routing = warmupEngine.shouldUseAlternative('paypal', parseFloat(plan.price_sell))
+    const account = warmupEngine.getBestAccount('paypal')
+    if (account?.status === 'restricted') {
+      return res.json({ success: false, warmupBlocked: true, error: 'PayPal restricted — try credit card', fallback: 'stripe' })
+    }
+    const result = await tryWarmupPayment(email, req.body.name, plan, 'paypal')
+    res.json(result)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/api/pay/stripe', express.json(), async (req, res) => {
+  try {
+    const { email, plan } = req.body
+    if (!plan?.price_sell) return res.status(400).json({ error: 'Plan with price_sell required' })
+    const routing = warmupEngine.shouldUseAlternative('stripe', parseFloat(plan.price_sell))
+    const account = warmupEngine.getBestAccount('stripe')
+    if (account?.status === 'restricted') {
+      return res.json({ success: false, error: 'Card payments restricted — try PayPal', fallback: 'paypal' })
+    }
+    const result = await tryWarmupPayment(email, req.body.name, plan, 'stripe')
+    res.json(result)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/api/pay/points', express.json(), async (req, res) => {
+  try {
+    const { email, plan } = req.body
+    if (!email || !plan?.price_sell) return res.status(400).json({ error: 'Email and plan required' })
+    const costCents = Math.round(parseFloat(plan.price_sell) * 100)
+    const row = db.prepare('SELECT balance FROM prepaid_credits WHERE customer_email = ?').get(email)
+    if (!row || row.balance < costCents) {
+      return res.json({ success: false, error: 'Insufficient points' })
+    }
+    db.prepare("UPDATE prepaid_credits SET balance = balance - ?, updated_at = datetime('now') WHERE customer_email = ?").run(costCents, email)
+    const orderId = createOrder(email, plan, 'points')
+    db.prepare('INSERT INTO credit_transactions (customer_email, amount, type, reference, order_id) VALUES (?, ?, ?, ?, ?)').run(email, -costCents, 'spend', `Plan ${plan.id}`, orderId)
+    const payload = {
+      order_id: orderId, customer_email: email, provider_id: plan.provider_id, plan_id: plan.id,
+      method: 'points', payment_id: `points_${orderId}`, amount: plan.price_sell, website_id: plan.website_id || 1,
+    }
+    const businessResult = await notifyBusiness(payload)
+    if (businessResult?.success) {
+      db.prepare("UPDATE orders SET business_order_id = ?, status = 'fulfilled', updated_at = datetime('now') WHERE id = ?").run(businessResult.business_order_id, orderId)
+    }
+    res.json({ success: true, business_result: businessResult })
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 // ==================== Crypto Monitor (background) ====================
