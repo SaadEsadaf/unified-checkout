@@ -154,10 +154,51 @@ router.post('/api/methods', (req, res) => {
   const db = getDb();
   const { key, value } = req.body;
   if (!key) return res.status(400).json({ error: 'key required' });
-  const existing = db.prepare("SELECT id FROM app_settings WHERE key = ?").get(key);
+  const existing = db.prepare("SELECT key FROM app_settings WHERE key = ?").get(key);
   if (existing) db.prepare("UPDATE app_settings SET value = ? WHERE key = ?").run(value || '', key);
   else db.prepare("INSERT INTO app_settings (key, value) VALUES (?, ?)").run(key, value || '');
   res.json({ success: true, key, value: value || '' });
+});
+
+// Method enabled/disabled status
+router.get('/api/methods/enabled', (req, res) => {
+  const db = getDb();
+  const methods = ['stripe', 'paypal', 'sellup', 'crypto', 'sepa', 'email-link', 'credits', 'points'];
+  const result = {};
+  for (const m of methods) {
+    const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(`method_${m}_enabled`);
+    result[m] = row?.value !== '0';
+  }
+  res.json(result);
+});
+
+router.post('/api/methods/enabled', (req, res) => {
+  const db = getDb();
+  const { method, enabled } = req.body;
+  if (!method) return res.status(400).json({ error: 'method required' });
+  const key = `method_${method}_enabled`;
+  const val = enabled ? '1' : '0';
+  const existing = db.prepare("SELECT key FROM app_settings WHERE key = ?").get(key);
+  if (existing) db.prepare("UPDATE app_settings SET value = ? WHERE key = ?").run(val, key);
+  else db.prepare("INSERT INTO app_settings (key, value) VALUES (?, ?)").run(key, val);
+  res.json({ success: true, method, enabled: !!enabled });
+});
+
+// Beta features
+router.get('/api/beta-features', (req, res) => {
+  const db = getDb();
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'beta_features_enabled'").get();
+  res.json({ enabled: row?.value === '1' });
+});
+
+router.post('/api/beta-features', (req, res) => {
+  const db = getDb();
+  const { enabled } = req.body;
+  const val = enabled ? '1' : '0';
+  const existing = db.prepare("SELECT key FROM app_settings WHERE key = 'beta_features_enabled'").get();
+  if (existing) db.prepare("UPDATE app_settings SET value = ? WHERE key = 'beta_features_enabled'").run(val);
+  else db.prepare("INSERT INTO app_settings (key, value) VALUES ('beta_features_enabled', ?)").run(val);
+  res.json({ success: true, enabled: !!enabled });
 });
 
 // Cloak stats
@@ -175,7 +216,7 @@ router.post('/api/cloak/toggle', (req, res) => {
   const db = getDb();
   const current = db.prepare("SELECT value FROM app_settings WHERE key = 'cloak_enabled'").get()?.value;
   const newVal = current === '0' ? '1' : '0';
-  const existing = db.prepare("SELECT id FROM app_settings WHERE key = 'cloak_enabled'").get();
+  const existing = db.prepare("SELECT key FROM app_settings WHERE key = 'cloak_enabled'").get();
   if (existing) db.prepare("UPDATE app_settings SET value = ? WHERE key = 'cloak_enabled'").run(newVal);
   else db.prepare("INSERT INTO app_settings (key, value) VALUES ('cloak_enabled', ?)").run(newVal);
   res.json({ success: true, enabled: newVal === '1' });
@@ -237,7 +278,7 @@ router.post('/api/crypto/address', (req, res) => {
   const { coin, address } = req.body;
   if (!coin || !address) return res.status(400).json({ error: 'coin and address required' });
   const key = `crypto_address_${coin}`;
-  const existing = db.prepare("SELECT id FROM app_settings WHERE key = ?").get(key);
+  const existing = db.prepare("SELECT key FROM app_settings WHERE key = ?").get(key);
   if (existing) db.prepare("UPDATE app_settings SET value = ? WHERE key = ?").run(address, key);
   else db.prepare("INSERT INTO app_settings (key, value) VALUES (?, ?)").run(key, address);
   res.json({ success: true, coin, address });
@@ -247,7 +288,7 @@ router.post('/api/crypto/toggle-monitor', (req, res) => {
   const db = getDb();
   const current = db.prepare("SELECT value FROM app_settings WHERE key = 'crypto_monitor_enabled'").get()?.value;
   const newVal = current === '1' ? '0' : '1';
-  const existing = db.prepare("SELECT id FROM app_settings WHERE key = 'crypto_monitor_enabled'").get();
+  const existing = db.prepare("SELECT key FROM app_settings WHERE key = 'crypto_monitor_enabled'").get();
   if (existing) db.prepare("UPDATE app_settings SET value = ? WHERE key = 'crypto_monitor_enabled'").run(newVal);
   else db.prepare("INSERT INTO app_settings (key, value) VALUES ('crypto_monitor_enabled', ?)").run(newVal);
   res.json({ success: true, enabled: newVal === '1' });
@@ -285,7 +326,7 @@ router.post('/api/failover', (req, res) => {
   const { chain } = req.body;
   if (!chain || !Array.isArray(chain)) return res.status(400).json({ error: 'chain array required' });
   const value = chain.join(',');
-  const existing = db.prepare("SELECT id FROM app_settings WHERE key = 'failover_chain'").get();
+  const existing = db.prepare("SELECT key FROM app_settings WHERE key = 'failover_chain'").get();
   if (existing) db.prepare("UPDATE app_settings SET value = ? WHERE key = 'failover_chain'").run(value);
   else db.prepare("INSERT INTO app_settings (key, value) VALUES ('failover_chain', ?)").run(value);
   res.json({ success: true, chain });
@@ -366,6 +407,48 @@ router.post('/api/warmup/log', (req, res) => {
   const warmupEngine = require('../services/warmupEngine');
   warmupEngine.logTxn(provider, account_id, parseFloat(amount || 0), success !== false, !!dispute);
   res.json({ success: true });
+});
+
+// Crypto conversion admin
+router.get('/api/crypto-convert/jobs', (req, res) => {
+  const db = getDb();
+  const limit = parseInt(req.query.limit) || 50;
+  const status = req.query.status || '';
+  let sql = 'SELECT * FROM crypto_convert_jobs';
+  let params = [];
+  if (status) { sql += ' WHERE status = ?'; params.push(status); }
+  sql += ' ORDER BY created_at DESC LIMIT ?';
+  params.push(limit);
+  const jobs = db.prepare(sql).all(...params);
+  const stats = db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) as pending, SUM(CASE WHEN status = 'PROCESSING' THEN 1 ELSE 0 END) as processing, SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) as completed, SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) as failed, COALESCE(SUM(CASE WHEN status = 'COMPLETED' THEN fiat_amount ELSE 0 END), 0) as total_converted FROM crypto_convert_jobs").get();
+  const feePercent = db.prepare("SELECT value FROM app_settings WHERE key = 'crypto_convert_fee_percent'").get()?.value || '2.0';
+  const binanceKey = db.prepare("SELECT value FROM app_settings WHERE key = 'binance_api_key'").get()?.value || '';
+  const binanceSecret = db.prepare("SELECT value FROM app_settings WHERE key = 'binance_secret'").get()?.value || '';
+  res.json({ jobs, stats, feePercent, binanceKey, binanceSecret });
+});
+
+router.post('/api/crypto-convert/jobs/:id/retry', async (req, res) => {
+  try {
+    const CryptoConverter = require('../services/cryptoConverter');
+    const { getDb } = require('../db');
+    const cc = new CryptoConverter(getDb());
+    const result = await cc.retryJob(parseInt(req.params.id));
+    res.json(result);
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+router.post('/api/crypto-convert/process-now', async (req, res) => {
+  try {
+    const CryptoConverter = require('../services/cryptoConverter');
+    const { getDb } = require('../db');
+    const cc = new CryptoConverter(getDb());
+    await cc.processPending();
+    res.json({ success: true, message: 'Worker run triggered' });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
 });
 
 module.exports = router;

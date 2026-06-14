@@ -95,6 +95,8 @@ function renderApp() {
     {id:'landing', icon:'🎨', label:'Landing Pages'},
     {id:'plugins', icon:'🧪', label:'Plugin Lab'},
     {id:'warmup', icon:'🌡️', label:'Warmup'},
+    {id:'convert', icon:'🔄', label:'Conversion'},
+    {id:'beta', icon:'🚧', label:'Beta'},
   ];
   document.getElementById('app').innerHTML = `
     <div class="sidebar">
@@ -110,7 +112,7 @@ function renderApp() {
 }
 
 async function loadAll() {
-  loadDashboard(); loadOrders(); loadMethods(); loadFailover(); loadCrypto(); loadCredits(); loadCloak(); loadLanding(); loadPluginLab(); loadWarmup();
+  loadDashboard(); loadOrders(); loadMethods(); loadFailover(); loadCrypto(); loadCredits(); loadCloak(); loadLanding(); loadPluginLab(); loadWarmup(); loadConvert(); loadBeta();
 }
 
 // ==================== DASHBOARD ====================
@@ -204,13 +206,22 @@ function showCreateOrder() {
 async function loadMethods() {
   const el = document.getElementById('content-methods');
   el.innerHTML = '<p style="color:#666">Loading...</p>';
-  state.methods = await api('GET', '/admin/api/methods');
-  if (!state.methods) return;
-  const m = state.methods;
+  const [methods, enabled] = await Promise.all([
+    api('GET', '/admin/api/methods'),
+    api('GET', '/admin/api/methods/enabled'),
+  ]);
+  if (!methods) return;
+  state.methods = methods;
+  state.methodsEnabled = enabled || {};
+  const m = methods;
   el.innerHTML = `
-    <div class="flex-between mb-16"><div><h1>💳 Payment Methods</h1><p style="color:#666;font-size:13px">Configure each payment gateway</p></div></div>
+    <div class="flex-between mb-16"><div><h1>💳 Payment Methods</h1><p style="color:#666;font-size:13px">Enable/disable and configure each gateway</p></div></div>
     <div class="grid-2">${Object.entries(m).map(([name, cfg]) => `
-      <div class="card"><div class="flex-between mb-8"><span class="card-title" style="margin:0">${nameIcon(name)} ${name.toUpperCase()}</span>${cfg._configured ? '<span class="badge badge-green">Configured</span>' : '<span class="badge badge-red">Not configured</span>'}</div>
+      <div class="card"><div class="flex-between mb-8"><span class="card-title" style="margin:0">${nameIcon(name)} ${name.toUpperCase()}</span>
+        <div class="flex">
+          <button class="btn btn-sm ${state.methodsEnabled[name]!==false ? 'btn-green' : 'btn-red'}" onclick="toggleMethod('${name}')">${state.methodsEnabled[name]!==false ? '✅ ON' : '⛔ OFF'}</button>
+          ${cfg._configured ? '<span class="badge badge-green">Configured</span>' : '<span class="badge badge-red">Not configured</span>'}
+        </div></div>
       ${Object.entries(cfg).filter(([k])=>!k.startsWith('_')).map(([key, val]) => `
         <div style="margin-bottom:8px"><label style="display:block;font-size:11px;color:#555;margin-bottom:3px;font-family:monospace">${key}</label>
         <div class="flex" style="gap:4px"><input type="${key.includes('secret')||key.includes('password')||key.includes('pin')?'password':'text'}" value="${esc(val)}" style="flex:1;font-family:monospace;font-size:12px;padding:6px 10px" id="m-${name}-${key}" onchange="updateMethodKey('${name}','${key}',this.value)">
@@ -218,6 +229,12 @@ async function loadMethods() {
       `).join('')}
       <div class="flex mt-8"><button class="btn btn-ghost btn-sm" onclick="testPlugin('${name}')">🧪 Test ${name}</button></div></div>
     `).join('')}</div>`;
+}
+
+async function toggleMethod(name) {
+  const current = state.methodsEnabled[name] !== false;
+  const d = await api('POST', '/admin/api/methods/enabled', { method: name, enabled: !current });
+  if (d?.success) { state.methodsEnabled[name] = !current; loadMethods(); }
 }
 
 function nameIcon(n) { return {stripe:'⚡',paypal:'🅿️',sellup:'🛒',crypto:'₿',sepa:'🏦','email-link':'📧'}[n]||'💳' }
@@ -540,6 +557,121 @@ async function loadWarmup() {
     </div>`;
 }
 
+// ==================== FIAT-TO-CRYPTO CONVERSION ====================
+async function loadConvert() {
+  const el = document.getElementById('content-convert');
+  el.innerHTML = '<p style="color:#666">Loading...</p>';
+  const d = await api('GET', '/admin/api/crypto-convert/jobs');
+  if (!d) return;
+  const { jobs, stats } = d;
+  el.innerHTML = `
+    <div class="flex-between mb-16"><div><h1>🔄 Fiat-to-Crypto Conversion</h1><p style="color:#666;font-size:13px">Background convert jobs — rates from CoinGecko, execution on Binance</p></div>
+      <div class="flex">
+        <button class="btn btn-ghost btn-sm" onclick="processConvertNow()">▶️ Process Pending</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadConvert()">🔄 Refresh</button>
+      </div></div>
+    <div class="stat-row">
+      <div class="stat"><div class="val">${stats.total}</div><div class="lbl">Total Jobs</div></div>
+      <div class="stat"><div class="val gold">${stats.pending}</div><div class="lbl">Pending</div></div>
+      <div class="stat"><div class="val blue">${stats.processing}</div><div class="lbl">Processing</div></div>
+      <div class="stat"><div class="val green">${stats.completed}</div><div class="lbl">Completed</div></div>
+      <div class="stat"><div class="val red">${stats.failed}</div><div class="lbl">Failed</div></div>
+      <div class="stat"><div class="val">€${parseFloat(stats.total_converted||0).toFixed(2)}</div><div class="lbl">Total Converted</div></div>
+    </div>
+    <div class="card" style="padding:0;overflow-x:auto">
+    <table><thead><tr><th>ID</th><th>Fiat</th><th>Crypto</th><th>Rate</th><th>Fee</th><th>Wallet</th><th>Status</th><th>TX Hash</th><th>Retries</th><th>Date</th><th></th></tr></thead>
+    <tbody>${jobs.map(j => `
+      <tr>
+        <td style="font-family:monospace;font-size:11px;color:#555">#${j.id}</td>
+        <td>€${parseFloat(j.fiat_amount).toFixed(2)}</td>
+        <td>${j.crypto_amount ? parseFloat(j.crypto_amount).toFixed(6) + ' ' + j.crypto_currency : j.crypto_currency}</td>
+        <td style="font-size:11px;color:#888">€${j.exchange_rate||'-'}</td>
+        <td>${j.fee_percent}%</td>
+        <td style="font-family:monospace;font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${esc(j.wallet_address)}">${esc(j.wallet_address?.substring(0,20))}...</td>
+        <td>${badgeConvertStatus(j.status)}</td>
+        <td style="font-family:monospace;font-size:10px;color:#888">${j.tx_hash ? j.tx_hash.substring(0,16)+'...' : '-'}</td>
+        <td>${j.retry_count}/${j.max_retries}</td>
+        <td style="font-size:11px;color:#666">${j.created_at}</td>
+        <td>${j.status === 'FAILED' ? '<button class="btn btn-ghost btn-sm" onclick="retryConvertJob('+j.id+')">Retry</button>' : ''}</td>
+      </tr>
+      ${j.last_error ? `<tr style="background:#1a0a0a"><td colspan="11" style="color:#ff6666;font-size:11px;padding:4px 10px">Error: ${esc(j.last_error)}</td></tr>` : ''}
+    `).join('')}
+    ${jobs.length === 0 ? '<tr><td colspan="11" style="text-align:center;color:#555;padding:24px">No conversion jobs yet</td></tr>' : ''}
+    </tbody></table></div>
+    <div class="card mt-8">
+      <div class="card-title">Conversion Settings</div>
+      <div class="grid-3">
+        <div><label style="display:block;font-size:11px;color:#555;margin-bottom:4px">Fee %</label>
+          <div class="flex"><input value="${d.feePercent||2}" style="width:80px;font-family:monospace" id="convert-fee" onchange="saveConvertSetting('crypto_convert_fee_percent', this.value)">
+          <button class="btn btn-ghost btn-sm" onclick="saveConvertSetting('crypto_convert_fee_percent', document.getElementById('convert-fee').value)">Save</button></div></div>
+        <div><label style="display:block;font-size:11px;color:#555;margin-bottom:4px">Binance API Key</label>
+          <input type="password" value="${esc(d.binanceKey||'')}" style="font-family:monospace;font-size:11px;width:100%" id="convert-binance-key" onchange="saveConvertSetting('binance_api_key', this.value)"></div>
+        <div><label style="display:block;font-size:11px;color:#555;margin-bottom:4px">Binance Secret</label>
+          <input type="password" value="${esc(d.binanceSecret||'')}" style="font-family:monospace;font-size:11px;width:100%" id="convert-binance-secret" onchange="saveConvertSetting('binance_secret', this.value)"></div>
+      </div>
+    </div>`;
+}
+
+function badgeConvertStatus(s) {
+  const map = { PENDING:'badge-gray', PROCESSING:'badge-blue', COMPLETED:'badge-green', FAILED:'badge-red' };
+  return `<span class="badge ${map[s]||'badge-gray'}">${s}</span>`;
+}
+
+async function retryConvertJob(id) {
+  const d = await api('POST', `/admin/api/crypto-convert/jobs/${id}/retry`);
+  if (d?.success) { toast('Job #' + id + ' retried'); loadConvert(); }
+}
+
+async function processConvertNow() {
+  const d = await api('POST', '/admin/api/crypto-convert/process-now');
+  if (d?.success) { toast('Worker triggered'); setTimeout(loadConvert, 2000); }
+}
+
+async function saveConvertSetting(key, value) {
+  await api('POST', '/admin/api/methods', { key, value });
+  toast('Saved ' + key);
+}
+
+// ==================== BETA FEATURES ====================
+async function loadBeta() {
+  const el = document.getElementById('content-beta');
+  el.innerHTML = '<p style="color:#666">Loading...</p>';
+  const d = await api('GET', '/admin/api/beta-features');
+  if (!d) return;
+  el.innerHTML = `
+    <div class="flex-between mb-16"><div><h1>🚧 Beta Features</h1><p style="color:#666;font-size:13px">Preview features — keep disabled until tested</p></div></div>
+    <div class="card">
+      <div class="flex-between">
+        <div><div class="card-title" style="margin:0">Master Toggle</div>
+        <p style="color:#888;font-size:12px;margin-top:4px">When disabled, all beta features are hidden site-wide</p></div>
+        <button class="btn ${d.enabled ? 'btn-green' : 'btn-red'}" onclick="toggleBeta()">${d.enabled ? '✅ Enabled' : '⛔ Disabled'}</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Available Beta Features</div>
+      <p style="color:#555;font-size:12px;margin-bottom:12px">${d.enabled ? '🟢 Beta features are currently ACTIVE and visible to users.' : '🔴 Beta features are DISABLED. Toggle the master switch above to enable.'}</p>
+      <div style="margin-top:12px;color:#888;font-size:13px;line-height:1.6">
+        <div style="padding:8px 0;border-bottom:1px solid #1a1a3a"><strong>🔮 Advanced Checkout Flow</strong><br><span style="font-size:11px;color:#555">Multi-step checkout with upsells and add-ons</span></div>
+        <div style="padding:8px 0;border-bottom:1px solid #1a1a3a"><strong>📊 Predictive Analytics</strong><br><span style="font-size:11px;color:#555">AI-powered revenue forecasting and anomaly detection</span></div>
+        <div style="padding:8px 0;border-bottom:1px solid #1a1a3a"><strong>🔄 Smart Failover</strong><br><span style="font-size:11px;color:#555">Auto-switch payment methods based on success rates</span></div>
+        <div style="padding:8px 0"><strong>🔗 Cross-Engine Order Sync</strong><br><span style="font-size:11px;color:#555">Real-time order status sync between all 3 engines</span></div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">When to Enable</div>
+      <ul style="color:#888;font-size:12px;line-height:1.8;padding-left:16px">
+        <li>Test each feature individually before turning on the master switch</li>
+        <li>Monitor warmup engine for account restrictions after enabling</li>
+        <li>Keep beta disabled during high-volume periods to avoid surprises</li>
+        <li>Enable email notifications in settings to get alerts on beta issues</li>
+      </ul>
+    </div>`;
+}
+
+async function toggleBeta() {
+  const d = await api('POST', '/admin/api/beta-features', { enabled: !(await api('GET', '/admin/api/beta-features'))?.enabled });
+  if (d) loadBeta();
+}
+
 // ==================== UTILITIES ====================
 function esc(s) { if (!s) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) }
 
@@ -550,8 +682,8 @@ if (token) { (async () => { const d = await api('GET', `/admin/api/auth?token=${
 // Hash routing
 window.addEventListener('hashchange', () => {
   const tab = location.hash.slice(1) || 'dashboard';
-  if (['dashboard','orders','methods','failover','crypto','credits','cloak','landing','plugins','warmup'].includes(tab)) show(tab);
+  if (['dashboard','orders','methods','failover','crypto','credits','cloak','landing','plugins','warmup','convert','beta'].includes(tab)) show(tab);
 });
 const initTab = location.hash.slice(1) || 'dashboard';
-if (['dashboard','orders','methods','failover','crypto','credits','cloak','landing','plugins','warmup'].includes(initTab)) setTimeout(() => show(initTab), 100);
+if (['dashboard','orders','methods','failover','crypto','credits','cloak','landing','plugins','warmup','convert','beta'].includes(initTab)) setTimeout(() => show(initTab), 100);
 </script></body></html>

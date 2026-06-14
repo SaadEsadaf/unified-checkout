@@ -290,6 +290,20 @@ if (planParam) {
 } else {
   document.getElementById('loading-view').innerHTML = '<div style="color:#888">No plan specified</div>'
 }
+
+// Hide disabled payment methods
+fetch('/api/methods/enabled')
+  .then(r => r.json())
+  .then(enabled => {
+    if (!enabled) return
+    document.querySelectorAll('.option-btn').forEach(btn => {
+      const method = btn.getAttribute('data-method')
+      if (enabled[method] === false) {
+        btn.style.display = 'none'
+      }
+    })
+  })
+  .catch(() => {})
 </script>
 </body>
 </html>

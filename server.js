@@ -7,10 +7,13 @@ const { getDb } = require('./db')
 const unifiedCheckout = require('./index')
 const { createCloakMiddleware } = require('./middleware/cloak')
 const warmupEngine = require('./services/warmupEngine')
+const CryptoConverter = require('./services/cryptoConverter')
 
 const app = express()
 const PORT = process.env.PORT || 3003
 const db = getDb()
+
+const cryptoConverter = new CryptoConverter(db)
 
 app.use(cors({ origin: '*', credentials: true }))
 app.use(express.json({ limit: '10mb' }))
@@ -35,6 +38,12 @@ function loadConfigs() {
     }
   }
   return configs
+}
+
+// ==================== Method Enable/Disable Check ====================
+function isMethodEnabled(method) {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(`method_${method}_enabled`);
+  return row?.value !== '0';
 }
 
 // ==================== Internal API Client to Business Engine ====================
@@ -81,7 +90,7 @@ const cloakEnabled = db.prepare("SELECT value FROM app_settings WHERE key = 'clo
 
 const { router } = unifiedCheckout({
   basePath: '/api/checkout',
-  plugins: ['stripe', 'paypal', 'sellup', 'crypto', 'sepa', 'email-link'],
+  plugins: ['stripe', 'paypal', 'sellup', 'crypto', 'sepa', 'email-link'].filter(m => isMethodEnabled(m)),
   pluginConfigs: loadConfigs(),
   siteUrl: process.env.SITE_URL || 'http://localhost:3003',
   successUrl: '/payment/success',
@@ -173,6 +182,7 @@ app.post('/api/credits/purchase', express.json(), async (req, res) => {
     const configs = loadConfigs()
 
     for (const name of ['stripe', 'paypal', 'sellup', 'crypto', 'sepa', 'email-link']) {
+      if (!isMethodEnabled(name)) continue
       try {
         const PluginClass = require(`./plugins/${name}`)
         const plugin = new PluginClass(configs[name] || {})
@@ -322,6 +332,7 @@ async function tryWarmupPayment(email, name, plan, method) {
 
 app.post('/api/pay/paypal', express.json(), async (req, res) => {
   try {
+    if (!isMethodEnabled('paypal')) return res.json({ success: false, error: 'PayPal is currently disabled' })
     const { email, plan } = req.body
     if (!plan?.price_sell) return res.status(400).json({ error: 'Plan with price_sell required' })
     const routing = warmupEngine.shouldUseAlternative('paypal', parseFloat(plan.price_sell))
@@ -336,6 +347,7 @@ app.post('/api/pay/paypal', express.json(), async (req, res) => {
 
 app.post('/api/pay/stripe', express.json(), async (req, res) => {
   try {
+    if (!isMethodEnabled('stripe')) return res.json({ success: false, error: 'Stripe is currently disabled' })
     const { email, plan } = req.body
     if (!plan?.price_sell) return res.status(400).json({ error: 'Plan with price_sell required' })
     const routing = warmupEngine.shouldUseAlternative('stripe', parseFloat(plan.price_sell))
@@ -350,6 +362,7 @@ app.post('/api/pay/stripe', express.json(), async (req, res) => {
 
 app.post('/api/pay/points', express.json(), async (req, res) => {
   try {
+    if (!isMethodEnabled('points')) return res.json({ success: false, error: 'Points are currently disabled' })
     const { email, plan } = req.body
     if (!email || !plan?.price_sell) return res.status(400).json({ error: 'Email and plan required' })
     const costCents = Math.round(parseFloat(plan.price_sell) * 100)
@@ -370,6 +383,106 @@ app.post('/api/pay/points', express.json(), async (req, res) => {
     }
     res.json({ success: true, business_result: businessResult })
   } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ==================== Fiat-to-Crypto Conversion ====================
+
+// POST /api/crypto-convert/create — create a conversion order, lock rate, return Stripe checkout URL
+app.post('/api/crypto-convert/create', express.json(), async (req, res) => {
+  try {
+    const { fiat_amount, fiat_currency, crypto_currency, wallet_address, email, idempotency_key } = req.body
+    if (!fiat_amount || !crypto_currency || !wallet_address) {
+      return res.status(400).json({ error: 'fiat_amount, crypto_currency, and wallet_address required' })
+    }
+    if (parseFloat(fiat_amount) < 10) return res.status(400).json({ error: 'Minimum €10' })
+
+    const result = await cryptoConverter.createJob({
+      fiatAmount: parseFloat(fiat_amount),
+      fiatCurrency: fiat_currency || 'EUR',
+      cryptoCurrency: crypto_currency.toUpperCase(),
+      walletAddress: wallet_address,
+      customerEmail: email || null,
+      idempotencyKey: idempotency_key,
+    })
+
+    if (result.existing) {
+      if (result.job.status === 'COMPLETED') {
+        return res.json({ existing: true, id: result.job.id, status: result.job.status, tx_hash: result.job.tx_hash })
+      }
+      const checkout = await cryptoConverter.createCheckout(result.job.id)
+      return res.json({ existing: true, id: result.job.id, status: result.job.status, checkout_url: checkout.url })
+    }
+
+    const checkout = await cryptoConverter.createCheckout(result.id)
+
+    res.json({
+      success: true,
+      id: result.id,
+      checkout_url: checkout.url,
+      fiat_amount: result.fiatAmount,
+      fiat_currency: result.fiatCurrency,
+      crypto_amount: result.cryptoAmount,
+      crypto_currency: result.cryptoCurrency,
+      exchange_rate: result.rate,
+      fee_percent: result.feePercent,
+      wallet_address,
+    })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/crypto-convert/status/:id — poll conversion status
+app.get('/api/crypto-convert/status/:id', (req, res) => {
+  const job = cryptoConverter.getJob(parseInt(req.params.id))
+  if (!job) return res.status(404).json({ error: 'Job not found' })
+  res.json({
+    id: job.id,
+    status: job.status,
+    fiat_amount: job.fiat_amount,
+    fiat_currency: job.fiat_currency,
+    crypto_amount: job.crypto_amount,
+    crypto_currency: job.crypto_currency,
+    exchange_rate: job.exchange_rate,
+    tx_hash: job.tx_hash,
+    fee_percent: job.fee_percent,
+    wallet_address: job.wallet_address,
+    created_at: job.created_at,
+    updated_at: job.updated_at,
+  })
+})
+
+// POST /api/webhook/stripe — generic Stripe webhook (handles all payment completions)
+app.post('/api/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const sig = req.headers['stripe-signature']
+    const webhookSecret = cryptoConverter.getSetting('stripe_webhook_secret')
+    if (!webhookSecret) return res.status(500).json({ error: 'Webhook secret not configured' })
+
+    const stripe = require('stripe')(cryptoConverter.getSetting('stripe_secret_key'))
+    let event
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret)
+    } catch (err) {
+      return res.status(400).json({ error: `Webhook error: ${err.message}` })
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object
+      const ref = session.metadata?.ref || ''
+      const jobMatch = ref.match(/^job_(\d+)$/)
+      if (jobMatch) {
+        const jobId = parseInt(jobMatch[1])
+        cryptoConverter.getJob(jobId)
+        cryptoConverter.processPending().catch(() => {})
+        console.log(`[Webhook] Payment completed for job #${jobId}`)
+      }
+    }
+
+    res.json({ received: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // ==================== Crypto Monitor (background) ====================
@@ -604,6 +717,17 @@ app.get('/api/internal/plans', async (req, res) => {
   }
 })
 
+// ==================== Public: Enabled Methods (no auth) ====================
+app.get('/api/methods/enabled', (req, res) => {
+  const methods = ['stripe', 'paypal', 'sellup', 'crypto', 'sepa', 'email-link', 'credits', 'points'];
+  const result = {};
+  for (const m of methods) {
+    const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(`method_${m}_enabled`);
+    result[m] = row?.value !== '0';
+  }
+  res.json(result);
+});
+
 // ==================== Health Endpoint (for EngineWatcher) ====================
 app.get('/api/internal/health', (req, res) => {
   const start = Date.now();
@@ -652,6 +776,9 @@ app.get('/api/internal/health', (req, res) => {
 // ==================== Start Server ====================
 app.listen(PORT, () => {
   console.log(`Payment Engine running on port ${PORT}`)
+
+  // Start crypto conversion worker
+  cryptoConverter.startWorker()
 
   // Start crypto monitor every 60 seconds
   const cryptoEnabled = db.prepare("SELECT value FROM app_settings WHERE key = 'crypto_monitor_enabled'").get()?.value
