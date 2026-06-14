@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "project": "Unified Checkout (Payment Engine)",
+  "instructions": ["AGENTS.md", "PROJECT_MAP.md"],
+  "command": {
+    "deploy:prod": { "description": "Deploy master branch to production", "prompt": "Run git pull origin master, install deps, restart PM2" },
+    "deploy:dev": { "description": "Merge dev changes and deploy", "prompt": "Merge dev into master, push, pull on server, restart PM2" }
+  },
+  "agent": {
+    "devops": {
+      "description": "Handles deployment, git workflow, and server management for all 3 engines",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-6"
+    }
+  }
+}

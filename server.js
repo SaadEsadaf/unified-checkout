@@ -1,5 +1,6 @@
-require('dotenv').config({ path: require('path').join(__dirname, '.env') })
+require('dotenv').config({ path: require('path').join(__dirname, process.env.NODE_ENV === 'development' ? '.env.dev' : '.env') })
 const express = require('express')
+const rateLimit = require('express-rate-limit')
 const cors = require('cors')
 const path = require('path')
 const crypto = require('crypto')
@@ -15,8 +16,27 @@ const db = getDb()
 
 const cryptoConverter = new CryptoConverter(db)
 
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+})
+
+const strictLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+})
+
 app.use(cors({ origin: '*', credentials: true }))
-app.use(express.json({ limit: '10mb' }))
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => { req.rawBody = buf.toString() }
+}))
 app.use('/admin', require('./routes/admin'))
 app.use(express.static(path.join(__dirname, 'client')))
 
@@ -65,24 +85,27 @@ function signPayload(payload) {
   return `${timestamp}.${sig}`
 }
 
-async function notifyBusiness(payload) {
+async function notifyBusiness(payload, retries = 3) {
   const url = `${getBusinessUrl()}/api/internal/fulfill`
   const signature = signPayload(payload)
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Engine-Signature': signature,
-      },
-      body: JSON.stringify(payload),
-    })
-    const data = await res.json()
-    return data
-  } catch (err) {
-    console.error('[PaymentEngine] Failed to notify Business Engine:', err.message)
-    return { error: err.message }
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Engine-Signature': signature,
+        },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      return data
+    } catch (err) {
+      console.error(`[PaymentEngine] Failed to notify Business Engine (attempt ${i + 1}/${retries}):`, err.message)
+      if (i < retries - 1) await new Promise(r => setTimeout(r, 1000 * (i + 1)))
+    }
   }
+  return { error: 'All retries exhausted' }
 }
 
 // ==================== Mount Unified Checkout ====================
@@ -145,7 +168,7 @@ app.get('/api/credits/:email/history', (req, res) => {
 })
 
 // POST /api/credits/purchase — buy credit package (returns payment URL)
-app.post('/api/credits/purchase', express.json(), async (req, res) => {
+app.post('/api/credits/purchase', strictLimiter, express.json(), async (req, res) => {
   try {
     const { email, name, amount, package: pkg } = req.body
     if (!email || !amount || amount < 10) {
@@ -172,8 +195,8 @@ app.post('/api/credits/purchase', express.json(), async (req, res) => {
       name,
       website_id: req.body.website_id || '1',
       siteUrl: process.env.SITE_URL || 'http://localhost:3003',
-      returnUrl: '',
-      cancelUrl: '/payment/cancel',
+      returnUrl: `${process.env.SITE_URL || 'http://localhost:3003'}/payment/success`,
+      cancelUrl: `${process.env.SITE_URL || 'http://localhost:3003'}/payment/cancel`,
     }
 
     const { tryPayment } = require('./plugins/failover')
@@ -203,23 +226,29 @@ app.post('/api/credits/purchase', express.json(), async (req, res) => {
 })
 
 // POST /api/credits/add — add credits (called after payment confirmed)
-app.post('/api/credits/add', express.json(), (req, res) => {
+app.post('/api/credits/add', limiter, express.json(), (req, res) => {
+  const token = req.headers['x-admin-token'] || req.headers['authorization']?.replace('Bearer ', '')
+  const expected = db.prepare("SELECT value FROM app_settings WHERE key = 'internal_api_secret'").get()?.value || process.env.INTERNAL_API_SECRET
+  if (!token || token !== expected) return res.status(401).json({ error: 'Unauthorized' })
+
   const { email, amount, reference } = req.body
   if (!email || !amount) return res.status(400).json({ error: 'Email and amount required' })
 
+  const amountCents = Math.round(parseFloat(amount) * 100)
+
   const existing = db.prepare('SELECT * FROM prepaid_credits WHERE customer_email = ?').get(email)
   if (existing) {
-    db.prepare('UPDATE prepaid_credits SET balance = balance + ?, updated_at = datetime(\'now\') WHERE customer_email = ?').run(amount, email)
+    db.prepare('UPDATE prepaid_credits SET balance = balance + ?, updated_at = datetime(\'now\') WHERE customer_email = ?').run(amountCents, email)
   } else {
-    db.prepare('INSERT INTO prepaid_credits (customer_email, balance) VALUES (?, ?)').run(email, amount)
+    db.prepare('INSERT INTO prepaid_credits (customer_email, balance) VALUES (?, ?)').run(email, amountCents)
   }
 
-  db.prepare('INSERT INTO credit_transactions (customer_email, amount, type, reference) VALUES (?, ?, ?, ?)').run(email, amount, 'purchase', reference || null)
-  res.json({ success: true, email, added: amount })
+  db.prepare('INSERT INTO credit_transactions (customer_email, amount, type, reference) VALUES (?, ?, ?, ?)').run(email, amountCents, 'purchase', reference || null)
+  res.json({ success: true, email, added: amountCents })
 })
 
 // POST /api/credits/spend — spend credits on a plan
-app.post('/api/credits/spend', express.json(), async (req, res) => {
+app.post('/api/credits/spend', limiter, express.json(), async (req, res) => {
   try {
     const { email, plan, website_id } = req.body
     if (!email || !plan) return res.status(400).json({ error: 'Email and plan required' })
@@ -319,7 +348,7 @@ async function tryWarmupPayment(email, name, plan, method) {
       website_id: plan.website_id || '1',
       siteUrl: process.env.SITE_URL || 'http://localhost:3003',
       returnUrl: `${process.env.SITE_URL || 'http://localhost:3003'}/payment/success`,
-      cancelUrl: '/payment/cancel',
+      cancelUrl: `${process.env.SITE_URL || 'http://localhost:3003'}/payment/cancel`,
     }
     const result = await plugin.createPayment(order)
     warmupEngine.logTxn(method, accountId, parseFloat(plan.price_sell), true, false)
@@ -330,7 +359,7 @@ async function tryWarmupPayment(email, name, plan, method) {
   }
 }
 
-app.post('/api/pay/paypal', express.json(), async (req, res) => {
+app.post('/api/pay/paypal', strictLimiter, express.json(), async (req, res) => {
   try {
     if (!isMethodEnabled('paypal')) return res.json({ success: false, error: 'PayPal is currently disabled' })
     const { email, plan } = req.body
@@ -345,7 +374,7 @@ app.post('/api/pay/paypal', express.json(), async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/api/pay/stripe', express.json(), async (req, res) => {
+app.post('/api/pay/stripe', strictLimiter, express.json(), async (req, res) => {
   try {
     if (!isMethodEnabled('stripe')) return res.json({ success: false, error: 'Stripe is currently disabled' })
     const { email, plan } = req.body
@@ -360,7 +389,7 @@ app.post('/api/pay/stripe', express.json(), async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/api/pay/points', express.json(), async (req, res) => {
+app.post('/api/pay/points', limiter, express.json(), async (req, res) => {
   try {
     if (!isMethodEnabled('points')) return res.json({ success: false, error: 'Points are currently disabled' })
     const { email, plan } = req.body
@@ -453,7 +482,7 @@ app.get('/api/crypto-convert/status/:id', (req, res) => {
 })
 
 // POST /api/webhook/stripe — generic Stripe webhook (handles all payment completions)
-app.post('/api/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+app.post('/api/webhook/stripe', async (req, res) => {
   try {
     const sig = req.headers['stripe-signature']
     const webhookSecret = cryptoConverter.getSetting('stripe_webhook_secret')
@@ -462,7 +491,7 @@ app.post('/api/webhook/stripe', express.raw({ type: 'application/json' }), async
     const stripe = require('stripe')(cryptoConverter.getSetting('stripe_secret_key'))
     let event
     try {
-      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret)
+      event = stripe.webhooks.constructEvent(Buffer.from(req.rawBody || ''), sig, webhookSecret)
     } catch (err) {
       return res.status(400).json({ error: `Webhook error: ${err.message}` })
     }
@@ -618,9 +647,9 @@ app.get('/lp/:slug', async (req, res) => {
       return res.send(page.html_content)
     }
 
-    // Real user — redirect to checkout with page context
-    const checkoutUrl = `/api/checkout/create?lp=${page.slug}&keyword=${encodeURIComponent(page.keyword || page.title)}`
-    res.redirect(307, checkoutUrl)
+    // Real user — redirect to checkout page with LP context (GET-friendly)
+    const checkoutUrl = `/checkout?lp=${encodeURIComponent(page.slug)}&keyword=${encodeURIComponent(page.keyword || page.title)}`
+    res.redirect(302, checkoutUrl)
   } catch (err) {
     console.error('[PaymentEngine] Landing page error:', err)
     res.status(500).send('Internal error')

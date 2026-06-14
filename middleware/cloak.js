@@ -67,7 +67,7 @@ function createCloakMiddleware(configPath) {
 
   return function cloakMiddleware(req, res, next) {
     const cfg = loadConfig()
-    const pathname = req.path || req.url
+    const pathname = req.originalUrl || req.url
 
     if (SAFE_PATHS.some(p => pathname.startsWith(p))) {
       req.isRealUser = true

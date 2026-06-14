@@ -1,0 +1,17 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2026-06-14",
+  "production": {
+    "branch": "master",
+    "pm2_name": "payment-engine",
+    "port": 3004,
+    "domain": "https://pay.dalletek.live",
+    "status": "online"
+  },
+  "development": {
+    "branch": "dev",
+    "deploy_path": "/var/www/unified-checkout",
+    "last_merged": null,
+    "pending_changes": []
+  }
+}

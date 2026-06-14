@@ -190,7 +190,7 @@ async function pay() {
 
   try {
     if (state.selectedMethod === 'points') {
-      if (state.points < (state.plan.price_sell * 100)) {
+      if (state.points < parseFloat(state.plan.price_sell)) {
         showError('Insufficient points. Need €' + state.plan.price_sell + ' but you have €' + state.points.toFixed(2))
         state.loading = false; document.getElementById('payBtn').disabled = false; document.getElementById('payBtn').textContent = 'Pay with Points'
         return
@@ -284,9 +284,30 @@ function init(plan) {
 
 const params = new URLSearchParams(window.location.search)
 const planParam = params.get('plan')
+const lpParam = params.get('lp')
+const keywordParam = params.get('keyword')
+
+function fetchPlansAndInit() {
+  fetch('/api/internal/plans' + (lpParam ? '?keyword=' + encodeURIComponent(keywordParam || lpParam) : ''))
+    .then(r => r.json())
+    .then(plans => {
+      if (Array.isArray(plans) && plans.length > 0) {
+        const matched = keywordParam ? plans.find(p => p.name?.toLowerCase().includes(keywordParam.toLowerCase()) || p.id?.toLowerCase().includes(keywordParam.toLowerCase())) : null
+        init(matched || plans[0])
+      } else {
+        document.getElementById('loading-view').innerHTML = '<div style="color:#e94560">No plans available</div>'
+      }
+    })
+    .catch(() => {
+      document.getElementById('loading-view').innerHTML = '<div style="color:#888">Unable to load plans. Please try again later.</div>'
+    })
+}
+
 if (planParam) {
   try { init(JSON.parse(decodeURIComponent(planParam))) }
   catch { document.getElementById('loading-view').innerHTML = '<div style="color:#e94560">Invalid plan data</div>' }
+} else if (lpParam || keywordParam) {
+  fetchPlansAndInit()
 } else {
   document.getElementById('loading-view').innerHTML = '<div style="color:#888">No plan specified</div>'
 }

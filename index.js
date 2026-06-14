@@ -88,8 +88,8 @@ function unifiedCheckout(userConfig = {}) {
         if (config.db) {
           const db = config.db()
           const result = db.prepare(`
-            INSERT INTO orders (customer_email, customer_name, customer_phone, provider_id, plan_id, status, source, amount, currency, website_id, created_at)
-            VALUES (?, ?, ?, ?, ?, 'pending', 'unified_checkout', ?, ?, ?, datetime('now'))
+            INSERT INTO orders (customer_email, customer_name, customer_phone, provider_id, plan_id, status, plan_price, currency, website_id, created_at)
+            VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, datetime('now'))
           `).run(
             email || null, name || null, phone || null,
             plan.provider_id || null, plan.id,
@@ -231,39 +231,34 @@ function unifiedCheckout(userConfig = {}) {
       return res.status(400).json({ error: `Unknown payment method: ${req.params.method}` })
     }
 
-    const chunks = []
-    req.on('data', chunk => chunks.push(chunk))
-    req.on('end', async () => {
-      try {
-        const rawBody = Buffer.concat(chunks).toString()
-        const body = JSON.parse(rawBody)
-        const signature = req.headers['stripe-signature'] || req.headers['x-sellup-signature'] || ''
+    try {
+      const rawBody = req.rawBody
+      const body = req.body
+      const signature = req.headers['stripe-signature'] || req.headers['x-sellup-signature'] || ''
 
-        if (plugin.verifyWebhookSignature) {
-          const valid = plugin.verifyWebhookSignature(body, signature, rawBody)
-          if (!valid) {
-            return res.status(401).json({ error: 'Invalid webhook signature' })
-          }
+      if (plugin.verifyWebhookSignature) {
+        const valid = plugin.verifyWebhookSignature(body, signature, rawBody)
+        if (!valid) {
+          return res.status(401).json({ error: 'Invalid webhook signature' })
         }
-
-        const result = await plugin.handleWebhook(body)
-
-        if (result.handled) {
-          try {
-            await config.onOrderComplete({
-              orderId: result.orderId,
-              method: result.method,
-              paymentId: result.paymentId,
-              raw: result.raw,
-            })
-          } catch {}
-        }
-
-        res.json({ received: true, ...result })
-      } catch (err) {
-        res.status(400).json({ error: err.message })
       }
-    })
+
+      plugin.handleWebhook(body).then(result => {
+        if (result.handled) {
+          config.onOrderComplete({
+            orderId: result.orderId,
+            method: result.method,
+            paymentId: result.paymentId,
+            raw: result.raw,
+          }).catch(() => {})
+        }
+        res.json({ received: true, ...result })
+      }).catch(err => {
+        res.status(400).json({ error: err.message })
+      })
+    } catch (err) {
+      res.status(400).json({ error: err.message })
+    }
   })
 
   // ==================== Verify Payment Status ====================
