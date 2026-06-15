@@ -359,6 +359,68 @@ async function tryWarmupPayment(email, name, plan, method) {
   }
 }
 
+// POST /api/pay/process — unified payment with background failover
+app.post('/api/pay/process', strictLimiter, express.json(), async (req, res) => {
+  try {
+    const { email, name, plan, preferredMethod } = req.body
+    if (!plan?.price_sell) return res.status(400).json({ error: 'Plan with price_sell required' })
+    if (!email) return res.status(400).json({ error: 'Email required' })
+    if (!preferredMethod) return res.status(400).json({ error: 'preferredMethod required' })
+
+    const methodOrder = ['stripe', 'paypal', 'sellup', 'crypto', 'sepa', 'email-link']
+    const startIdx = methodOrder.indexOf(preferredMethod)
+    if (startIdx === -1) return res.status(400).json({ error: `Unknown method: ${preferredMethod}` })
+
+    const orderId = createOrder(email, plan, preferredMethod)
+
+    const tryMethod = async (method) => {
+      if (!isMethodEnabled(method)) return null
+      try {
+        const configs = loadPluginConfigs()
+        const PluginClass = require(`./plugins/${method}`)
+        const plugin = new PluginClass(configs[method] || {})
+        if (plugin.isConfigured && !plugin.isConfigured()) return null
+        const o = {
+          id: orderId, plan, email, name: name || '',
+          website_id: plan.website_id || '1',
+          siteUrl: process.env.SITE_URL || 'http://localhost:3003',
+          returnUrl: `${process.env.SITE_URL || 'http://localhost:3003'}/payment/success`,
+          cancelUrl: `${process.env.SITE_URL || 'http://localhost:3003'}/payment/cancel`,
+        }
+        const r = await plugin.createPayment(o)
+        const accountId = configs[method]?.[`${method}_email`] || method
+        warmupEngine.logTxn(method, accountId, parseFloat(plan.price_sell), true, false)
+        return { success: true, method, result: r, orderId }
+      } catch (err) {
+        const accountId = loadPluginConfigs()[method]?.[`${method}_email`] || method
+        warmupEngine.logTxn(method, accountId, parseFloat(plan.price_sell), false, true)
+        return null
+      }
+    }
+
+    // Warmup check for preferred method
+    const routing = warmupEngine.shouldUseAlternative(preferredMethod, parseFloat(plan.price_sell))
+    const account = warmupEngine.getBestAccount(preferredMethod)
+    let result = null
+    if ((routing.usePrimary !== false || plan.warmupBypass === true) && account?.status !== 'restricted') {
+      result = await tryMethod(preferredMethod)
+    }
+
+    // Try fallback methods in background: sellup → crypto → sepa → email-link
+    if (!result) {
+      const fallbacks = methodOrder.filter(m => m !== preferredMethod)
+      for (const method of fallbacks) {
+        result = await tryMethod(method)
+        if (result) break
+      }
+    }
+
+    if (result) return res.json(result)
+
+    res.json({ success: false, error: 'All payment methods failed', orderId })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 app.post('/api/pay/paypal', strictLimiter, express.json(), async (req, res) => {
   try {
     if (!isMethodEnabled('paypal')) return res.json({ success: false, error: 'PayPal is currently disabled' })

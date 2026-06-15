@@ -11,19 +11,29 @@ body { font-family:system-ui,-apple-system,sans-serif; background:#0a0a0f; color
 .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px }
 .header h1 { font-size:22px; background:linear-gradient(135deg,#00d4ff,#8b5cf6); -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text }
 .badge { background:#2a2a4a; color:#888; padding:4px 10px; border-radius:20px; font-size:12px }
-.summary { background:#0d0d1e; border-radius:12px; padding:16px; margin-bottom:24px }
+.summary { background:#0d0d1e; border-radius:12px; padding:16px; margin-bottom:20px }
 .summary-row { display:flex; justify-content:space-between; padding:8px 0 }
 .summary-row:not(:last-child) { border-bottom:1px solid #1a1a2e }
 .summary-label { color:#888; font-size:13px }
 .summary-value { color:#fff; font-size:14px; font-weight:600 }
 .price { color:#e94560; font-size:24px; font-weight:700 }
-.form-group { margin-bottom:16px }
+.form-group { margin-bottom:14px }
 .form-group label { display:block; color:#888; font-size:13px; margin-bottom:6px }
 .form-group input { width:100%; padding:12px 16px; background:#0d0d1e; border:1px solid #2a2a4a; border-radius:10px; color:#fff; font-size:14px; outline:none }
 .form-group input:focus { border-color:#00d4ff }
-.points-badge { display:none; background:linear-gradient(135deg,#f59e0b,#ef4444); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; margin-bottom:16px; text-align:center }
-.points-badge span { font-weight:700 }
-.options { display:flex; flex-direction:column; gap:10px; margin-top:8px }
+.separator { border:none; border-top:1px solid #1a1a2e; margin:16px 0 }
+.points-card { background:linear-gradient(135deg,#0d0d1e,#1a1a2e); border:1px solid #2a2a4a; border-radius:12px; padding:16px; margin-bottom:16px }
+.points-balance { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px }
+.points-amount { font-size:20px; font-weight:700 }
+.points-amount.enough { color:#00cc66 }
+.points-amount.low { color:#f59e0b }
+.points-label { color:#888; font-size:13px }
+.points-action { margin-top:10px }
+.btn-points-full { width:100%; padding:14px; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; background:linear-gradient(135deg,#00cc66,#059669); color:#fff; transition:opacity 0.2s }
+.btn-points-full:hover { opacity:0.9 }
+.btn-get-points { width:100%; padding:12px; border:none; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; background:linear-gradient(135deg,#f59e0b,#ef4444); color:#fff; transition:opacity 0.2s; display:flex; align-items:center; justify-content:center; gap:8px }
+.btn-get-points:hover { opacity:0.9 }
+.options { display:flex; flex-direction:column; gap:10px }
 .option-btn { display:flex; align-items:center; gap:14px; padding:16px; border:2px solid #2a2a4a; border-radius:12px; cursor:pointer; background:#0d0d1e; color:#fff; font-size:15px; transition:all 0.2s; width:100%; text-align:left }
 .option-btn:hover { border-color:#00d4ff; background:#111128 }
 .option-btn.selected { border-color:#00d4ff; background:#111128 }
@@ -33,11 +43,10 @@ body { font-family:system-ui,-apple-system,sans-serif; background:#0a0a0f; color
 .option-label { font-weight:600; font-size:14px }
 .option-desc { color:#666; font-size:12px; margin-top:2px }
 .option-tag { font-size:11px; padding:2px 8px; border-radius:4px; background:#2a2a4a; color:#888 }
-.btn-primary { width:100%; padding:14px; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; transition:opacity 0.2s; margin-top:16px }
+.btn-primary { width:100%; padding:14px; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; transition:opacity 0.2s; margin-top:12px }
 .btn-primary:hover { opacity:0.9 }
 .btn-paypal { background:#0070ba; color:#fff }
 .btn-stripe { background:#635bff; color:#fff }
-.btn-points { background:linear-gradient(135deg,#f59e0b,#ef4444); color:#fff }
 .btn-secondary { width:100%; padding:12px; background:none; border:1px solid #2a2a4a; border-radius:10px; color:#666; font-size:13px; cursor:pointer; margin-top:8px; transition:color 0.2s }
 .btn-secondary:hover { color:#fff; border-color:#444 }
 .error { color:#e94560; font-size:13px; padding:8px 12px; background:#2a1520; border-radius:6px; margin-bottom:12px; display:none }
@@ -49,10 +58,24 @@ body { font-family:system-ui,-apple-system,sans-serif; background:#0a0a0f; color
 .manual-details div { padding:6px 0; border-bottom:1px solid #1a1a2e; color:#ccc }
 .manual-details div:last-child { border:none }
 .manual-details strong { color:#888 }
-.warmup-notice { background:#1a2a1a; border:1px solid #2a4a2a; border-radius:8px; padding:8px 12px; font-size:11px; color:#81c784; margin-bottom:12px; display:none }
+.notice { background:#1a2a1a; border:1px solid #2a4a2a; border-radius:8px; padding:8px 12px; font-size:11px; color:#81c784; margin-bottom:12px; display:none }
+.processing-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:1000 }
+.processing-box { background:#1a1a2e; border:1px solid #2a2a4a; border-radius:16px; padding:40px; text-align:center; max-width:360px }
+.processing-box .spinner { width:48px; height:48px; border-width:4px }
+.processing-box h3 { margin:16px 0 8px; font-size:18px }
+.processing-box p { color:#888; font-size:13px }
 </style>
 </head>
 <body>
+
+<div class="processing-overlay" id="processingOverlay">
+  <div class="processing-box">
+    <div class="spinner"></div>
+    <h3>Processing Payment...</h3>
+    <p id="processingMsg">Trying your preferred method</p>
+  </div>
+</div>
+
 <div class="panel" id="app">
   <div class="header">
     <h1>Checkout</h1>
@@ -67,40 +90,40 @@ body { font-family:system-ui,-apple-system,sans-serif; background:#0a0a0f; color
   <div id="checkout-view" style="display:none">
     <div class="summary" id="planSummary"></div>
 
-    <div id="warmupNotice" class="warmup-notice"></div>
-
     <div class="form-group">
       <label>Email address</label>
       <input type="email" id="emailInput" placeholder="your@email.com" autocomplete="email">
     </div>
 
-    <div id="pointsBadge" class="points-badge"></div>
-    <div id="pointsTopup" style="display:none;margin-bottom:12px">
-      <button onclick="topupPoints()" style="width:100%;padding:10px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">⚡ Top up points</button>
-    </div>
+    <hr class="separator">
 
-    <div class="form-group">
-      <label>Payment method</label>
+    <div id="pointsSection"></div>
+
+    <hr class="separator" id="methodSeparator" style="display:none">
+
+    <div id="methodSection" style="display:none">
+      <div style="font-size:13px;color:#888;margin-bottom:10px">Pay with card or PayPal:</div>
       <div class="options">
-        <button class="option-btn" data-method="points" onclick="selectMethod('points')" id="pointsBtn">
-          <span class="option-icon">⭐</span>
-          <span class="option-info"><div class="option-label">Points <span id="pointsRecBadge" style="display:none;background:#00cc66;color:#fff;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:middle">Recommended</span></div><div class="option-desc">No chargeback risk — use your prepaid balance</div></span>
-          <span class="option-tag" id="pointsTag">0 pts</span>
-        </button>
         <button class="option-btn" data-method="paypal" onclick="selectMethod('paypal')">
           <span class="option-icon">🅿️</span>
-          <span class="option-info"><div class="option-label">PayPal</div><div class="option-desc">Pay with your PayPal account</div></span>
-          <span class="option-tag">Chargeback risk</span>
+          <span class="option-info">
+            <div class="option-label">PayPal</div>
+            <div class="option-desc">Pay with your PayPal account</div>
+          </span>
         </button>
         <button class="option-btn" data-method="stripe" onclick="selectMethod('stripe')">
           <span class="option-icon">💳</span>
-          <span class="option-info"><div class="option-label">Credit Card</div><div class="option-desc">Visa, Mastercard, Maestro</div></span>
-          <span class="option-tag">Chargeback risk</span>
+          <span class="option-info">
+            <div class="option-label">Credit Card</div>
+            <div class="option-desc">Visa, Mastercard — processed securely</div>
+          </span>
         </button>
       </div>
+
+      <button class="btn-primary" id="payBtn" onclick="pay()" disabled>Continue to Payment</button>
     </div>
 
-    <button class="btn-primary" id="payBtn" onclick="pay()" disabled>Continue</button>
+    <div id="error" class="error"></div>
     <button class="btn-secondary" onclick="goBack()">Cancel</button>
   </div>
 
@@ -114,125 +137,144 @@ body { font-family:system-ui,-apple-system,sans-serif; background:#0a0a0f; color
   <div id="manual-view" style="display:none;text-align:center;padding:10px">
     <div style="font-size:36px;margin-bottom:12px">📋</div>
     <h2 style="margin-bottom:8px;font-size:18px">Complete Your Payment</h2>
-    <p style="color:#888;font-size:13px;margin-bottom:16px" id="manualDesc">Send the exact amount using the details below</p>
+    <p style="color:#888;font-size:13px;margin-bottom:16px" id="manualDesc">Use the details below</p>
     <div class="manual-details" id="manualDetails"></div>
     <button class="btn-secondary" onclick="showCheckout()">Back</button>
   </div>
 </div>
 
 <script>
-let state = { plan: null, email: '', points: 0, selectedMethod: '', loading: false, error: '', orderResult: null }
+let state = { plan: null, email: '', points: 0, selectedMethod: '', processing: false }
 
 function updatePoints() {
   const email = document.getElementById('emailInput').value.trim()
   state.email = email
-  if (!email || !email.includes('@')) {
-    document.getElementById('pointsBadge').style.display = 'none'
-    document.getElementById('pointsTag').textContent = '0 pts'
-    document.getElementById('pointsRecBadge').style.display = 'none'
-    return
-  }
+  renderPoints()
+  if (!email || !email.includes('@')) return
   fetch('/api/credits/' + encodeURIComponent(email))
     .then(r => r.json())
     .then(d => {
       state.points = (d.balance || 0) / 100
-      const badge = document.getElementById('pointsBadge')
-      const tag = document.getElementById('pointsTag')
-      const recBadge = document.getElementById('pointsRecBadge')
-      const price = parseFloat(state.plan?.price_sell || 0)
-      const enoughForPlan = state.points >= price
-      if (state.points > 0) {
-        const pointsNeeded = Math.max(0, price - state.points)
-        badge.innerHTML = enoughForPlan
-          ? '⭐ You have <span>' + state.points.toFixed(0) + ' points</span> (€' + state.points.toFixed(2) + ')  ✅ Enough to pay in full'
-          : '⭐ You have <span>' + state.points.toFixed(0) + ' points</span> (€' + state.points.toFixed(2) + ')  ⚠️ Need €' + pointsNeeded.toFixed(2) + ' more'
-        badge.style.display = 'block'
-        badge.style.background = enoughForPlan
-          ? 'linear-gradient(135deg,#00cc66,#059669)'
-          : 'linear-gradient(135deg,#f59e0b,#ef4444)'
-        tag.textContent = state.points.toFixed(0) + ' pts'
-        recBadge.style.display = enoughForPlan ? 'inline' : 'none'
-        if (enoughForPlan && !state.selectedMethod) {
-          selectMethod('points')
-        }
-      } else {
-        badge.style.display = 'none'
-        tag.textContent = '0 pts'
-        recBadge.style.display = 'none'
-      }
+      renderPoints()
     })
     .catch(() => {})
 }
 
-function topupPoints() {
-  const btn = document.getElementById('payBtn')
-  btn.textContent = 'Redirecting to top-up...'; btn.disabled = true
-  window.location.href = '/checkout?topup=' + encodeURIComponent(state.email) + '&return=' + encodeURIComponent(window.location.href)
+function renderPoints() {
+  const section = document.getElementById('pointsSection')
+  const price = parseFloat(state.plan?.price_sell || 0)
+  const hasEnough = state.points >= price
+
+  let html = '<div class="points-card">'
+  html += '<div class="points-balance">'
+  if (state.points > 0) {
+    html += '<div><div class="points-label">Your Balance</div><div class="points-amount ' + (hasEnough ? 'enough' : 'low') + '">' + state.points.toFixed(0) + ' pts <span style="font-size:13px;color:#888;font-weight:400">(€' + state.points.toFixed(2) + ')</span></div></div>'
+    html += '<div>' + (hasEnough ? '<span style="color:#00cc66;font-size:13px">✅ Enough</span>' : '<span style="color:#f59e0b;font-size:13px">⚠️ Need €' + (price - state.points).toFixed(2) + '</span>') + '</div>'
+  } else {
+    html += '<div><div class="points-label">Points</div><div class="points-amount low">0 pts</div></div>'
+    html += '<div><span style="color:#888;font-size:13px">⚡ No points</span></div>'
+  }
+  html += '</div>'
+
+  if (hasEnough && state.points > 0) {
+    html += '<div class="points-action"><button class="btn-points-full" onclick="payWithPoints()">⭐ Pay with Points (€' + price.toFixed(2) + ')</button></div>'
+  }
+  html += '<div class="points-action"><button class="btn-get-points" onclick="getPoints()">⚡ Get Points via PayPal</button></div>'
+  html += '</div>'
+
+  section.innerHTML = html
+
+  document.getElementById('methodSeparator').style.display = 'block'
+  document.getElementById('methodSection').style.display = 'block'
 }
 
 function selectMethod(method) {
   document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'))
   document.querySelector('.option-btn[data-method="' + method + '"]').classList.add('selected')
   state.selectedMethod = method
+  document.getElementById('payBtn').disabled = false
+  if (method === 'paypal') {
+    document.getElementById('payBtn').className = 'btn-primary btn-paypal'
+    document.getElementById('payBtn').textContent = 'Pay with PayPal'
+  } else {
+    document.getElementById('payBtn').className = 'btn-primary btn-stripe'
+    document.getElementById('payBtn').textContent = 'Pay with Credit Card'
+  }
+}
 
-  const btn = document.getElementById('payBtn')
-  btn.disabled = false
-  if (method === 'paypal') { btn.className = 'btn-primary btn-paypal'; btn.textContent = 'Pay with PayPal' }
-  else if (method === 'stripe') { btn.className = 'btn-primary btn-stripe'; btn.textContent = 'Pay with Credit Card' }
-  else if (method === 'points') { btn.className = 'btn-primary btn-points'; btn.textContent = 'Pay with Points' }
+function showProcessing(msg) {
+  state.processing = true
+  document.getElementById('processingMsg').textContent = msg || 'Processing your payment...'
+  document.getElementById('processingOverlay').style.display = 'flex'
+}
+
+function hideProcessing() {
+  state.processing = false
+  document.getElementById('processingOverlay').style.display = 'none'
+}
+
+async function payWithPoints() {
+  if (!state.email) { showError('Enter your email'); return }
+  showProcessing('Redeeming points...')
+  try {
+    const res = await fetch('/api/pay/points', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: state.email, plan: state.plan })
+    })
+    const data = await res.json()
+    hideProcessing()
+    if (data.success) { showSuccess('Paid with points!') }
+    else { showError(data.error || 'Points payment failed') }
+  } catch (err) {
+    hideProcessing()
+    showError(err.message)
+  }
 }
 
 async function pay() {
   if (!state.email) { showError('Enter your email'); return }
   if (!state.selectedMethod) { showError('Select a payment method'); return }
-
-  state.loading = true; document.getElementById('payBtn').disabled = true; document.getElementById('payBtn').textContent = 'Processing...'; hideError()
+  hideError()
+  showProcessing('Trying ' + state.selectedMethod + '...')
 
   try {
-    if (state.selectedMethod === 'points') {
-      if (state.points < parseFloat(state.plan.price_sell)) {
-        showError('Insufficient points. Need €' + state.plan.price_sell + ' but you have €' + state.points.toFixed(2))
-        state.loading = false; document.getElementById('payBtn').disabled = false; document.getElementById('payBtn').textContent = 'Pay with Points'
-        return
-      }
-      const res = await fetch('/api/pay/points', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: state.email, plan: state.plan })
-      })
-      const data = await res.json()
-      if (data.success) { showSuccess('Paid with points!') }
-      else { showError(data.error || 'Points payment failed') }
-      state.loading = false; document.getElementById('payBtn').disabled = false
-      return
-    }
-
-    const res = await fetch('/api/pay/' + state.selectedMethod, {
+    const res = await fetch('/api/pay/process', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: state.email, plan: state.plan })
+      body: JSON.stringify({ email: state.email, name: '', plan: state.plan, preferredMethod: state.selectedMethod })
     })
     const data = await res.json()
-    if (data.success && data.url) { window.location.href = data.url; return }
-    if (data.success && data.manual) { showManual(data.details); return }
-    if (data.success) { showSuccess('Payment initiated'); return }
+    hideProcessing()
 
-    showError(data.error || 'Payment failed')
-  } catch (err) { showError(err.message) }
+    if (data.success && data.result?.url) {
+      window.location.href = data.result.url
+      return
+    }
+    if (data.success && data.result?.manual) {
+      showManual(data.result)
+      return
+    }
+    if (data.success) {
+      showSuccess('Payment initiated!')
+      return
+    }
+    showError(data.error || 'Payment failed. Please try another method.')
+  } catch (err) {
+    hideProcessing()
+    showError(err.message)
+  }
+}
 
-  state.loading = false; document.getElementById('payBtn').disabled = false
-  if (state.selectedMethod === 'paypal') document.getElementById('payBtn').textContent = 'Pay with PayPal'
-  else if (state.selectedMethod === 'stripe') document.getElementById('payBtn').textContent = 'Pay with Credit Card'
-  else document.getElementById('payBtn').textContent = 'Pay with Points'
+function getPoints() {
+  window.location.href = '/credits?email=' + encodeURIComponent(state.email) + '&return=' + encodeURIComponent(window.location.href)
 }
 
 function showError(msg) {
-  const el = document.getElementById('checkout-view').querySelector('.error')
-  if (!el) return
+  const el = document.getElementById('error')
   el.textContent = msg; el.style.display = 'block'
 }
 
 function hideError() {
-  const el = document.getElementById('checkout-view').querySelector('.error')
-  if (el) el.style.display = 'none'
+  document.getElementById('error').style.display = 'none'
 }
 
 function showSuccess(msg) {
@@ -275,11 +317,13 @@ function init(plan) {
   document.getElementById('checkout-view').style.display = 'block'
 
   const summary = document.getElementById('planSummary')
-  summary.innerHTML = '<div class="summary-row"><span class="summary-label">Plan</span><span class="summary-value">' + (plan.name || 'Plan') + '</span></div>' +
+  summary.innerHTML =
+    '<div class="summary-row"><span class="summary-label">Plan</span><span class="summary-value">' + (plan.name || 'Plan') + '</span></div>' +
     '<div class="summary-row"><span class="summary-label">Duration</span><span class="summary-value">' + (plan.duration || '') + '</span></div>' +
     '<div class="summary-row"><span class="summary-label">Total</span><span class="price">€' + (plan.price_sell || '0') + '</span></div>'
 
   document.getElementById('emailInput').addEventListener('input', updatePoints)
+  if (document.getElementById('emailInput').value) updatePoints()
 }
 
 const params = new URLSearchParams(window.location.search)
@@ -299,7 +343,7 @@ function fetchPlansAndInit() {
       }
     })
     .catch(() => {
-      document.getElementById('loading-view').innerHTML = '<div style="color:#888">Unable to load plans. Please try again later.</div>'
+      document.getElementById('loading-view').innerHTML = '<div style="color:#888">Unable to load plans</div>'
     })
 }
 
@@ -311,20 +355,6 @@ if (planParam) {
 } else {
   document.getElementById('loading-view').innerHTML = '<div style="color:#888">No plan specified</div>'
 }
-
-// Hide disabled payment methods
-fetch('/api/methods/enabled')
-  .then(r => r.json())
-  .then(enabled => {
-    if (!enabled) return
-    document.querySelectorAll('.option-btn').forEach(btn => {
-      const method = btn.getAttribute('data-method')
-      if (enabled[method] === false) {
-        btn.style.display = 'none'
-      }
-    })
-  })
-  .catch(() => {})
 </script>
 </body>
 </html>

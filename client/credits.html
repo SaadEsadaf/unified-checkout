@@ -22,12 +22,18 @@ h1 { font-size:22px; background:linear-gradient(135deg,#f59e0b,#ef4444); -webkit
 .form-group label { display:block; color:#888; font-size:13px; margin-bottom:6px }
 .form-group input { width:100%; padding:12px 16px; background:#0d0d1e; border:1px solid #2a2a4a; border-radius:10px; color:#fff; font-size:14px; outline:none }
 .form-group input:focus { border-color:#f59e0b }
-.btn { width:100%; padding:14px; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; background:linear-gradient(135deg,#f59e0b,#ef4444); color:#fff; margin-top:8px }
+.btn { width:100%; padding:14px; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; color:#fff; margin-top:8px; transition:opacity 0.2s }
 .btn:hover { opacity:0.9 }
 .btn:disabled { opacity:0.4; cursor:not-allowed }
+.btn-paypal { background:#0070ba }
+.btn-card { background:linear-gradient(135deg,#6366f1,#8b5cf6) }
 .btn-secondary { width:100%; padding:12px; background:none; border:1px solid #2a2a4a; border-radius:10px; color:#666; font-size:13px; cursor:pointer; margin-top:8px }
 .btn-secondary:hover { color:#fff }
 .error { color:#e94560; font-size:13px; padding:8px; background:#2a1520; border-radius:6px; margin-bottom:12px; display:none }
+.or-divider { display:flex; align-items:center; gap:12px; margin:16px 0; color:#444; font-size:12px }
+.or-divider::before, .or-divider::after { content:''; flex:1; height:1px; background:#1a1a2e }
+.paypal-info { background:#0d0d1e; border-radius:8px; padding:12px; font-size:12px; color:#888; margin-top:8px; display:none }
+.paypal-info strong { color:#ccc }
 </style>
 </head>
 <body>
@@ -37,9 +43,8 @@ h1 { font-size:22px; background:linear-gradient(135deg,#f59e0b,#ef4444); -webkit
 
   <div class="info">
     <div>💡 <strong>Why use points?</strong></div>
-    <div style="margin-top:6px">• Zero chargeback risk for you</div>
-    <div>• Instant activation after purchase</div>
-    <div>• Use across all our services</div>
+    <div style="margin-top:6px">• Zero chargeback risk</div>
+    <div>• Instant activation</div>
     <div>• 1 point = €0.01</div>
   </div>
 
@@ -56,7 +61,17 @@ h1 { font-size:22px; background:linear-gradient(135deg,#f59e0b,#ef4444); -webkit
     <input type="number" id="customAmountInput" placeholder="10" min="5" step="1">
   </div>
 
-  <button class="btn" id="buyBtn" onclick="buyCredits()">Continue to payment</button>
+  <button class="btn btn-paypal" id="paypalBtn" onclick="buyWithPayPal()">🅿️ Pay with PayPal</button>
+
+  <div class="or-divider">or</div>
+
+  <button class="btn btn-card" id="cardBtn" onclick="buyWithCard()">💳 Pay with Credit Card</button>
+
+  <div class="paypal-info" id="paypalInfo">
+    <div><strong>PayPal Email:</strong> iboplayer.service@gmail.com</div>
+    <div style="margin-top:4px">Send exact amount as Friends & Family. Points credited after payment confirmation.</div>
+  </div>
+
   <button class="btn-secondary" onclick="goBack()">Cancel</button>
   <div class="error" id="err"></div>
 </div>
@@ -97,42 +112,65 @@ function selectPkg(i) {
   selectedPkg = PKGS[i]
   document.querySelectorAll('.pkg').forEach((el, idx) => el.classList.toggle('selected', idx === i))
   document.getElementById('customAmount').style.display = selectedPkg.custom ? 'block' : 'none'
-  document.getElementById('buyBtn').disabled = false
+  document.getElementById('paypalBtn').disabled = false
+  document.getElementById('cardBtn').disabled = false
 }
 
-async function buyCredits() {
+function getAmount() {
   const email = document.getElementById('emailInput').value.trim()
-  if (!email) { showErr('Enter your email'); return }
-  if (!selectedPkg) { showErr('Select an amount'); return }
-
+  if (!email) { showErr('Enter your email'); return null }
+  if (!selectedPkg) { showErr('Select an amount'); return null }
   let amount = selectedPkg.price
   if (selectedPkg.custom) {
     amount = parseFloat(document.getElementById('customAmountInput').value)
-    if (!amount || amount < 5) { showErr('Minimum €5'); return }
+    if (!amount || amount < 5) { showErr('Minimum €5'); return null }
   }
+  return { email, amount }
+}
 
-  document.getElementById('buyBtn').disabled = true
-  document.getElementById('buyBtn').textContent = 'Redirecting to payment...'
-
+async function buyWithPayPal() {
+  const r = getAmount()
+  if (!r) return
+  document.getElementById('paypalBtn').disabled = true
+  document.getElementById('paypalBtn').textContent = 'Redirecting to PayPal...'
   try {
     const res = await fetch('/api/credits/purchase', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name: '', amount, website_id: 1 })
+      body: JSON.stringify({ email: r.email, name: '', amount: r.amount, website_id: 1 })
     })
     const data = await res.json()
-    if (data.success && data.url) {
-      window.location.href = data.url
-    } else if (data.success && data.manual) {
-      alert('Manual payment details:\n' + JSON.stringify(data, null, 2))
-    } else {
-      showErr(data.error || 'Purchase failed')
-      document.getElementById('buyBtn').disabled = false
-      document.getElementById('buyBtn').textContent = 'Continue to payment'
-    }
-  } catch (err) {
-    showErr(err.message)
-    document.getElementById('buyBtn').disabled = false
-    document.getElementById('buyBtn').textContent = 'Continue to payment'
+    if (data.success && data.url) { window.location.href = data.url; return }
+    if (data.success && data.manual) { showManual(data); return }
+    showErr(data.error || 'Purchase failed')
+  } catch (err) { showErr(err.message) }
+  document.getElementById('paypalBtn').disabled = false
+  document.getElementById('paypalBtn').textContent = '🅿️ Pay with PayPal'
+}
+
+async function buyWithCard() {
+  const r = getAmount()
+  if (!r) return
+  document.getElementById('cardBtn').disabled = true
+  document.getElementById('cardBtn').textContent = 'Redirecting...'
+  try {
+    const res = await fetch('/api/credits/purchase', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: r.email, name: '', amount: r.amount, website_id: 1 })
+    })
+    const data = await res.json()
+    if (data.success && data.url) { window.location.href = data.url; return }
+    if (data.success && data.manual) { showManual(data); return }
+    showErr(data.error || 'Purchase failed')
+  } catch (err) { showErr(err.message) }
+  document.getElementById('cardBtn').disabled = false
+  document.getElementById('cardBtn').textContent = '💳 Pay with Credit Card'
+}
+
+function showManual(data) {
+  const info = document.getElementById('paypalInfo')
+  info.style.display = 'block'
+  if (data.details?.paypalEmail) {
+    info.innerHTML = '<div><strong>Send to:</strong> ' + data.details.paypalEmail + '</div><div style="margin-top:4px"><strong>Amount:</strong> €' + (data.details.amount || '') + '</div>'
   }
 }
 
@@ -140,6 +178,7 @@ function showErr(msg) {
   const el = document.getElementById('err')
   el.textContent = msg; el.style.display = 'block'
 }
+
 function goBack() {
   const ret = params.get('return') || '/'
   window.location.href = ret
